@@ -364,7 +364,7 @@ export class VideoService {
           });
           const moveRemuxFileArgs = this.createRcloneMoveArgs(remuxFilePath, remuxUrlFolder);
           await this.uploadMedia(moveRemuxFileArgs, job.id);
-          linkedInputUrl = streamStorage.publicUrl.replace(':path', remuxUrlPath);
+          linkedInputUrl = streamStorage.publicUrl.replace(':service_path', 's3').replace(':path', remuxUrlPath);
         }
         // Video info
         const isHDRVideo = mediaInfoHelper.isHDRVideo(videoTrack.color_space, videoTrack.color_transfer, videoTrack.color_primaries);
@@ -1433,7 +1433,7 @@ export class VideoService {
     }
     if (!externalStorage.publicUrl)
       return null;
-    return externalStorage.publicUrl.replace(':path', encodeURIComponent('/' + job.data.path + '/' + job.data.filename));
+    return externalStorage.publicUrl.replace(':service_path', 's3').replace(':path', encodeURIComponent(job.data.path + '/' + job.data.filename));
   }
 
   private async findAvailableQuality(uploadedFiles: string[], allQualityList: number[], parsedInput: path.ParsedPath,

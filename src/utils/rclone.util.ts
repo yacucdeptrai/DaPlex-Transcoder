@@ -9,6 +9,9 @@ import { stringHelper } from './string-helper.util';
 
 export class RcloneHelper {
   createRcloneConfig(storage: IStorage) {
+    if (storage.kind === 7 || storage.kind === 8) {
+      return this.createS3RcloneConfig(storage);
+    }
     const token = JSON.stringify({
       access_token: storage.accessToken,
       token_type: 'Bearer',
@@ -36,6 +39,37 @@ export class RcloneHelper {
       newConfig += 'no_versions = true\n\n';
     }
     return newConfig;
+  }
+
+  private createS3RcloneConfig(storage: IStorage) {
+    const { endpoint, bucket, folderPrefix } = this.parseS3PublicUrl(storage.publicUrl, storage.folderId);
+    const baseRemoteName = `${storage._id}_s3`;
+    let newConfig = `[${baseRemoteName}]\n`;
+    newConfig += 'type = s3\n';
+    newConfig += 'provider = Other\n';
+    newConfig += `access_key_id = ${storage.clientId}\n`;
+    newConfig += `secret_access_key = ${storage.clientSecret}\n`;
+    newConfig += `endpoint = ${endpoint}\n`;
+    newConfig += 'region = auto\n\n';
+    newConfig += `[${storage._id}]\n`;
+    newConfig += 'type = alias\n';
+    newConfig += `remote = ${baseRemoteName}:${bucket}${folderPrefix}\n\n`;
+    return newConfig;
+  }
+
+  private parseS3PublicUrl(publicUrl: string, folderId?: string) {
+    const hasServicePath = publicUrl.includes(':service_path');
+    const normalized = publicUrl.replace(':service_path', 's3').replace(':path', '');
+    const url = new URL(normalized);
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    let endpoint = `${url.protocol}//${url.host}`;
+    if (hasServicePath) {
+      endpoint += `/${pathParts[0]}/`;
+      pathParts.shift();
+    }
+    const bucket = pathParts[0] || '';
+    const folderPrefix = folderId ? `/${folderId}` : '';
+    return { endpoint, bucket, folderPrefix };
   }
 
   downloadFile(configPath: string, rcloneDir: string, remote: string, folder: string, file: string,
@@ -319,8 +353,14 @@ export class RcloneHelper {
   }
 
   async refreshRemoteTokens(configPath: string, rcloneDir: string, remotes: string[], logFn: (args: string[]) => void) {
+    const allowedTypes = ['onedrive'];
+    const remoteTypes = await this.getRemoteTypes(configPath, rcloneDir);
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
+      const remoteType = remoteTypes.get(remote);
+      if (!remoteType || !allowedTypes.includes(remoteType)) {
+        continue;
+      }
       const args: string[] = [
         '--config', `"${configPath}"`,
         'about', remote
@@ -344,6 +384,45 @@ export class RcloneHelper {
         });
       });
     }
+  }
+
+  private getRemoteTypes(configPath: string, rcloneDir: string) {
+    const args: string[] = [
+      '--config', `"${configPath}"`,
+      'listremotes', '--long'
+    ];
+    return new Promise<Map<string, string>>((resolve, reject) => {
+      const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
+
+      let remoteListString = '';
+      let errorMessage = '';
+
+      rclone.stdout.setEncoding('utf8');
+      rclone.stdout.on('data', (data) => {
+        remoteListString += data;
+      });
+
+      rclone.stderr.setEncoding('utf8');
+      rclone.stderr.on('data', (data) => {
+        errorMessage += data + '\n';
+      });
+
+      rclone.on('exit', (code: number) => {
+        if (code !== 0) {
+          reject({ code: code, message: errorMessage });
+        } else {
+          const remoteTypes = new Map<string, string>();
+          const lines = remoteListString.split('\n').filter(r => !!r);
+          for (const line of lines) {
+            const [remote, type] = line.split(':').map(s => s.trim());
+            if (remote && type) {
+              remoteTypes.set(`${remote}:`, type);
+            }
+          }
+          resolve(remoteTypes);
+        }
+      });
+    });
   }
 
   parseRcloneUploadProgress(data: string) {
