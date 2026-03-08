@@ -1112,9 +1112,10 @@ export class VideoService {
         'tune=0', 'enable-overlays=1', 'film-grain=0', 'film-grain-denoise=0', 'scd=1', 'sharpness=0', 'enable-qm=1', 'qm-min=0',
         'enable-variance-boost=1',
       ],
-      psy: ['tune=0', 'enable-overlays=1', 'film-grain=0', 'film-grain-denoise=0', 'sharpness=0', 'scd=1']
+      psy: ['tune=0', 'enable-overlays=1', 'film-grain=0', 'film-grain-denoise=0', 'sharpness=0', 'scd=1'],
+      hdr: ['sharpness=0']
     };
-    const svtAV1Params = svtAv1Preset === 'psy' ? svtAV1PresetParams.psy : svtAV1PresetParams.main;
+    const svtAV1Params = svtAv1Preset === 'psy' ? svtAV1PresetParams.psy : svtAv1Preset === 'hdr' ? svtAV1PresetParams.hdr : svtAV1PresetParams.main;
     if (advancedSettings.h264Tune !== 'animation')
       svtAV1Params.push('scm=0');
     if (sourceInfo.hdrParams) {
