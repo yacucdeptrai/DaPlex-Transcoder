@@ -597,6 +597,7 @@ export class VideoService {
       });
     }
     for (let i = 0; i < qualityList.length; i++) {
+      await this.transcoderApiService.checkAndWaitForTranscoderPriority();
       this.logger.info(`Processing video quality: ${qualityList[i]}`);
       const streamId = await createSnowFlakeId();
       const perQualitySettings = encodingSettings.find(s => s.quality === qualityList[i]);
@@ -1425,16 +1426,18 @@ export class VideoService {
   private async getLinkedSourceUrl(job: Job<IVideoData>) {
     let externalStorage;
     if (job.data.linkedStorage)
-      externalStorage = await externalStorageModel.findOne({ _id: BigInt(job.data.linkedStorage) }, { publicUrl: 1 }).lean().exec();
+      externalStorage = await externalStorageModel.findOne({ _id: BigInt(job.data.linkedStorage) }, { publicUrl: 1, folderId: 1 }).lean().exec();
     else
-      externalStorage = await externalStorageModel.findOne({ _id: BigInt(job.data.storage) }, { publicUrl: 1 }).lean().exec();
+      externalStorage = await externalStorageModel.findOne({ _id: BigInt(job.data.storage) }, { publicUrl: 1, folderId: 1 }).lean().exec();
     if (!externalStorage) {
       const statusError = await this.generateStatusError(StatusCode.STORAGE_NOT_FOUND, job);
       throw new Error(statusError.errorCode);
     }
     if (!externalStorage.publicUrl)
       return null;
-    return externalStorage.publicUrl.replace(':service_path', 's3').replace(':path', encodeURIComponent(job.data.path + '/' + job.data.filename));
+    const sourcePathItems = [externalStorage.folderId || '', job.data.path, job.data.filename];
+    const sourcePath = path.posix.join(...sourcePathItems.map(value => encodeURIComponent(value)));
+    return externalStorage.publicUrl.replace(':service_path', 's3').replace(':path', sourcePath);
   }
 
   private async findAvailableQuality(uploadedFiles: string[], allQualityList: number[], parsedInput: path.ParsedPath,
