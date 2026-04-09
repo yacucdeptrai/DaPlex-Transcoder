@@ -19,7 +19,7 @@ import { IVideoData, IJobData, IStorage, IEncodingSetting, MediaQueueResult, Enc
 import { AudioCodec, StatusCode, VideoCodec, RejectCode, TaskQueue } from '../../enums';
 import { ENCODING_QUALITY, AUDIO_PARAMS, AUDIO_SURROUND_PARAMS, VIDEO_H264_PARAMS, VIDEO_H265_PARAMS, VIDEO_VP9_PARAMS, VIDEO_AV1_PARAMS, AUDIO_SPEED_PARAMS, AUDIO_SURROUND_OPUS_PARAMS, NEXT_GEN_ENCODING_QUALITY, SPLIT_SEGMENT_FOLDER, CONCAT_SEGMENT_FILE } from '../../config';
 import { HlsManifest, RcloneFile } from '../../common/interfaces';
-import { KamplexApiService } from '../../common/modules/kamplex-api';
+import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import {
   createSnowFlakeId, diskSpaceUtil, ffmpegHelper, fileHelper, generateSprites, hdrMetadataHelper, mediaInfoHelper,
@@ -50,7 +50,7 @@ export class VideoService {
 
   constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
     @InjectQueue(TaskQueue.VIDEO_TRANSCODE_RESULT) private videoResultQueue: Queue<MediaQueueResult, any, JobNameType>,
-    private configService: ConfigService, private kamplexApiService: KamplexApiService,
+    private configService: ConfigService, private daplexApiService: DaplexApiService,
     private transcoderApiService: TranscoderApiService) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
     this.AudioParams = audioParams ? audioParams.split(' ') : AUDIO_PARAMS;
@@ -248,7 +248,7 @@ export class VideoService {
 
     this.logger.info(`Video resolution: ${srcWidth}x${srcHeight}`);
 
-    await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+    await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
     await this.videoResultQueue.add('update-source', {
       ...job.data,
       jobId: job.id,
@@ -454,7 +454,7 @@ export class VideoService {
       this.logger.error(JSON.stringify(e));
       if (e === RejectCode.JOB_CANCEL) {
         this.logger.info(`Received cancel signal from job id: ${job.id}`);
-        //await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+        //await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
         //await this.videoResultQueue.add('cancelled-encoding', this.generateStatus(job));
         return {};
       }
@@ -473,7 +473,7 @@ export class VideoService {
       this.setTranscoderPriority(0);
       this.logger.info('Completed');
     }
-    await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+    await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
     await this.videoResultQueue.add('finished-encoding', this.generateStatus(job));
     return {};
   }
@@ -569,7 +569,7 @@ export class VideoService {
       `${job.data.storage}:${job.data._id}/${streamId}`);
     await this.uploadMedia(rcloneMoveArgs, job.id);
 
-    await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+    await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
     await this.videoResultQueue.add('add-stream-audio', {
       ...job.data,
       jobId: job.id,
@@ -687,7 +687,7 @@ export class VideoService {
         throw e;
       }
 
-      await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+      await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
       await this.videoResultQueue.add('add-stream-video', {
         ...job.data,
         jobId: job.id,
@@ -1499,7 +1499,7 @@ export class VideoService {
       this.logger.info(`Available quality: ${availableQualityList.length ? availableQualityList.join(', ') : 'None'}`);
       if (!availableQualityList.length && !job.data.advancedOptions?.audioOnly) {
         this.logger.info('Everything is already encoded, no need to continue');
-        await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+        await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
         await this.videoResultQueue.add('cancelled-encoding', { ...job.data, jobId: job.id, keepStreams: true });
         return null;
       }
@@ -1553,7 +1553,7 @@ export class VideoService {
     const status = { errorCode, jobId: job.id, ...job.data };
     const statusJson = JSON.stringify(status);
     this.logger.error(`Error: ${errorCode} - ${statusJson}`);
-    await this.kamplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
+    await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
     if (options.discard)
       job.discard();
     if (options.discard || job.attemptsMade >= job.opts.attempts)

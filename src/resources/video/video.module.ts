@@ -6,7 +6,7 @@ import { Logger } from 'winston';
 
 import { VideoService } from './video.service';
 import { BaseVideoConsumer, VideoCosumerAV1, VideoCosumerH264, VideoCosumerH265, VideoCosumerVP9 } from './video.consumer';
-import { KamplexApiModule } from '../../common/modules/kamplex-api';
+import { DaplexApiModule } from '../../common/modules/daplex-api';
 import { TranscoderApiModule } from '../../common/modules/transcoder-api';
 import { TaskQueue, VideoCodec } from '../../enums';
 import { VideoController } from './video.controller';
@@ -31,7 +31,7 @@ function getTargetConsumer(consumerCodec: number) {
         attempts: 3
       }
     }),
-    KamplexApiModule,
+    DaplexApiModule,
     TranscoderApiModule
   ],
   providers: [

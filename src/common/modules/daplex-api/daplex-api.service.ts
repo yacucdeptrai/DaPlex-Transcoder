@@ -9,7 +9,7 @@ import { fileHelper } from '../../../utils';
 import { BYPASS_PRODUCER_CHECK_FILE, PRODUCER_DOMAINS_FILE } from '../../../config';
 
 @Injectable()
-export class KamplexApiService {
+export class DaplexApiService {
   constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger, private httpService: HttpService,
     private configService: ConfigService) { }
 
@@ -51,7 +51,7 @@ export class KamplexApiService {
   }
 
   private async isValidApiUrl(url: string) {
-    const envApiDomains = (this.configService.get<string>('KAMPLEX_API_DOMAINS') || '').split(',');
+    const envApiDomains = (this.configService.get<string>('DAPLEX_API_DOMAINS') || '').split(',');
     let urlData: URL;
     try {
       urlData = new URL(url);

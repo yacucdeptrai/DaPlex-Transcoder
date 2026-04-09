@@ -1,15 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { KamplexApiService } from './kamplex-api.service';
+import { DaplexApiService } from './daplex-api.service';
 
-describe('KamplexApiService', () => {
-  let service: KamplexApiService;
+describe('DaplexApiService', () => {
+  let service: DaplexApiService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [KamplexApiService],
+      providers: [DaplexApiService],
     }).compile();
 
-    service = module.get<KamplexApiService>(KamplexApiService);
+    service = module.get<DaplexApiService>(DaplexApiService);
   });
 
   it('should be defined', () => {
