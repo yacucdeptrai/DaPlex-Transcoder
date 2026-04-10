@@ -165,6 +165,10 @@ export class VideoService {
             !!job.data.linkedStorage, (args => {
               this.logger.info('rclone ' + args.join(' '));
             }));
+          const postDownloadStats = await fileHelper.statFile(inputFile);
+          if (!postDownloadStats || postDownloadStats.size === 0) {
+            throw new Error(`Download produced no file or empty file at ${inputFile} (remote: ${downloadStorage}:${job.data.path}/${job.data.filename})`);
+          }
           if (job.data.linkedStorage) {
             // Trim file name and create folder on remote
             await Promise.all([
@@ -186,17 +190,23 @@ export class VideoService {
     let videoMIInfo: MediaInfoResult;
     try {
       if (!this.UseURLInput) {
-        this.logger.info(`Processing input file: ${inputFile}`);
-        videoInfo = await FFprobe(inputFile, { path: `${ffmpegDir}/ffprobe` });
-        videoMIInfo = await mediaInfoHelper.getMediaInfo(inputFile, mediainfoDir);
+        const probeTarget = inputFile;
+        const probeStats = await fileHelper.statFile(probeTarget);
+        if (!probeStats) {
+          throw new Error(`Input file does not exist: ${probeTarget}`);
+        }
+        this.logger.info(`Processing input file: ${probeTarget} (${probeStats.size} bytes)`);
+        videoInfo = await FFprobe(probeTarget, { path: `${ffmpegDir}/ffprobe` });
+        videoMIInfo = await mediaInfoHelper.getMediaInfo(probeTarget, mediainfoDir);
       } else {
         this.logger.info(`Processing input file: ${linkedInputUrl}`);
         videoInfo = await FFprobe(linkedInputUrl, { path: `${ffmpegDir}/ffprobe` });
         videoMIInfo = await mediaInfoHelper.getMediaInfo(linkedInputUrl, mediainfoDir);
       }
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`PROBE_FAILED: ${errMsg}`);
       console.error(e);
-      this.logger.error(e);
       await fileHelper.deleteFolder(transcodeDir);
       const statusError = await this.generateStatusError(StatusCode.PROBE_FAILED, job, { discard: true });
       throw new UnrecoverableError(statusError.errorCode);
