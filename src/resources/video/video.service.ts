@@ -23,7 +23,7 @@ import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import {
   createSnowFlakeId, diskSpaceUtil, ffmpegHelper, fileHelper, generateSprites, hdrMetadataHelper, mediaInfoHelper,
-  MediaInfoResult, StringCrypto, stringHelper, StreamManifest, rcloneHelper, videoSourceHelper, isEqualShallow
+  MediaInfoResult, StringCrypto, stringHelper, StreamManifest, rcloneHelper, videoSourceHelper, isEqualShallow, createCancelChecker
 } from '../../utils';
 import { Progress } from '../../common/entities';
 
@@ -1331,13 +1331,13 @@ export class VideoService {
   }
 
   private createCancelJobChecker(jobId: string | number, exec: () => void, ms: number = 5000) {
-    return setInterval(() => {
-      const index = this.CanceledJobIds.findIndex(j => +j === +jobId);
-      if (index === -1) return;
-      this.CanceledJobIds = this.CanceledJobIds.filter(id => +id > +jobId);
-      // Exec callback
-      exec();
-    }, ms)
+    return createCancelChecker(
+      () => this.CanceledJobIds,
+      ids => (this.CanceledJobIds = ids),
+      jobId,
+      exec,
+      ms
+    );
   }
 
   private createRetryEncodingChecker(exec: () => void, ms: number = 5000) {

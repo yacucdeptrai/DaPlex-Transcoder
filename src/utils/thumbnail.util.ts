@@ -10,6 +10,7 @@ import fs from 'fs';
 import child_process from 'child_process';
 
 import { ffmpegHelper } from './ffmpeg-helper.util';
+import { createCancelChecker } from './cancel-checker.util';
 import { FFMPEG_RECONNECT_ARGS, HDR_TONEMAP_FILTER } from '../config';
 import { RejectCode } from '../enums/reject-code.enum';
 import { fileHelper } from './file-helper.util';
@@ -368,15 +369,17 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
       stdout.write(data);
     });
 
-    const cancelledJobChecker = setInterval(() => {
-      const index = input.canceledJobIds.findIndex(j => +j === +input.jobId);
-      if (index === -1) return;
-
-      input.canceledJobIds = input.canceledJobIds.filter(id => +id > +input.jobId);
-      isCancelled = true;
-      ffmpeg.stdin.write('q');
-      ffmpeg.stdin.end();
-    }, 5000);
+    const cancelledJobChecker = createCancelChecker(
+      () => input.canceledJobIds,
+      ids => (input.canceledJobIds = ids),
+      input.jobId,
+      () => {
+        isCancelled = true;
+        ffmpeg.stdin.write('q');
+        ffmpeg.stdin.end();
+      },
+      5000
+    );
 
     const progressTimeoutChecker = setInterval(() => {
       if (isProgressTimeout) {

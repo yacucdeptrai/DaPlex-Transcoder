@@ -4,6 +4,7 @@ import chokidar from 'chokidar';
 
 import { fileHelper } from './file-helper.util';
 import { ffmpegHelper } from './ffmpeg-helper.util';
+import { createCancelChecker } from './cancel-checker.util';
 import { FFMPEG_RECONNECT_ARGS } from '../config';
 import { RejectCode } from '../enums';
 
@@ -82,16 +83,18 @@ export class VideoSourceHelper {
         stdout.write(data);
       });
 
-      const cancelledJobChecker = setInterval(() => {
-        const index = options.canceledJobIds.findIndex(j => +j === +options.jobId);
-        if (index === -1) return;
-
-        options.canceledJobIds = options.canceledJobIds.filter(id => +id > +options.jobId);
-        isCancelled = true;
-        ffmpeg.stdin.write('q');
-        ffmpeg.stdin.end();
-        rclone?.kill('SIGINT');
-      }, 5000);
+      const cancelledJobChecker = createCancelChecker(
+        () => options.canceledJobIds,
+        ids => (options.canceledJobIds = ids),
+        options.jobId,
+        () => {
+          isCancelled = true;
+          ffmpeg.stdin.write('q');
+          ffmpeg.stdin.end();
+          rclone?.kill('SIGINT');
+        },
+        5000
+      );
 
       const watcher = chokidar.watch(`${outputFolder}/segment_*.mkv`, {
         persistent: true,
@@ -187,15 +190,17 @@ export class VideoSourceHelper {
         stdout.write(data);
       });
 
-      const cancelledJobChecker = setInterval(() => {
-        const index = options.canceledJobIds.findIndex(j => +j === +options.jobId);
-        if (index === -1) return;
-
-        options.canceledJobIds = options.canceledJobIds.filter(id => +id > +options.jobId);
-        isCancelled = true;
-        ffmpeg.stdin.write('q');
-        ffmpeg.stdin.end();
-      }, 5000);
+      const cancelledJobChecker = createCancelChecker(
+        () => options.canceledJobIds,
+        ids => (options.canceledJobIds = ids),
+        options.jobId,
+        () => {
+          isCancelled = true;
+          ffmpeg.stdin.write('q');
+          ffmpeg.stdin.end();
+        },
+        5000
+      );
 
       ffmpeg.on('exit', (code: number) => {
         stdout.write('\n');
