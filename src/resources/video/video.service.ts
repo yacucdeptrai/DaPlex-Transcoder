@@ -49,7 +49,7 @@ export class VideoService {
   private thumbnailFolder: string;
 
   constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
-    @InjectQueue(TaskQueue.VIDEO_TRANSCODE_RESULT) private videoResultQueue: Queue<MediaQueueResult, any, JobNameType>,
+    @InjectQueue(TaskQueue.VIDEO_TRANSCODE_RESULT) private videoResultQueue: Queue<MediaQueueResult, Record<string, never>, JobNameType>,
     private configService: ConfigService, private daplexApiService: DaplexApiService,
     private transcoderApiService: TranscoderApiService) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
@@ -77,7 +77,7 @@ export class VideoService {
     this.thumbnailFolder = THUMBNAIL_FOLDER;
   }
 
-  async transcode(job: Job<IVideoData>, codec: number = 1) {
+  async transcode(job: Job<IVideoData>, codec: VideoCodec = VideoCodec.H264) {
     const cancelIndex = this.CanceledJobIds.findIndex(j => +j === +job.id);
     if (cancelIndex > -1) {
       this.CanceledJobIds = this.CanceledJobIds.filter(id => +id > +job.id);

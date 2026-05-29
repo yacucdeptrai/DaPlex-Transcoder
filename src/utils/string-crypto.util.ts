@@ -9,7 +9,7 @@ export class StringCrypto {
   }
 
   encrypt(text: string) {
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string | null>((resolve, reject) => {
       if (!this.key) reject('Encrypt failed: Crypto key is missing');
       if (!text) resolve(null);
       // Generate a fresh IV per call. Reusing a single IV across encryptions in CBC
@@ -23,7 +23,7 @@ export class StringCrypto {
   }
 
   decrypt(text: string) {
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string | null>((resolve, reject) => {
       if (!this.key) reject('Decrypt failed: Crypto key is missing');
       if (!text) resolve(null);
       const subText = text.split('.');

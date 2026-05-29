@@ -1,4 +1,4 @@
-export class IStorage {
+export interface IStorage {
   _id: bigint;
   name: string;
   clientId: string;
