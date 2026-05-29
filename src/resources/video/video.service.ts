@@ -17,7 +17,7 @@ import { settingModel } from '../../models/setting.model';
 import { mediaModel } from '../../models/media.model';
 import { IVideoData, IJobData, IStorage, IEncodingSetting, MediaQueueResult, EncodeAudioOptions, EncodeVideoOptions, VideoSourceInfo, CreateAudioEncodingArgsOptions, CreateVideoEncodingArgsOptions, EncodeAudioByTrackOptions, AdvancedVideoSettings, ResolveVideoFiltersOptions, ValidateSourceQualityOptions } from './interfaces';
 import { AudioCodec, StatusCode, VideoCodec, RejectCode, TaskQueue } from '../../enums';
-import { ENCODING_QUALITY, AUDIO_PARAMS, AUDIO_SURROUND_PARAMS, VIDEO_H264_PARAMS, VIDEO_H265_PARAMS, VIDEO_VP9_PARAMS, VIDEO_AV1_PARAMS, AUDIO_SPEED_PARAMS, AUDIO_SURROUND_OPUS_PARAMS, NEXT_GEN_ENCODING_QUALITY, SPLIT_SEGMENT_FOLDER, CONCAT_SEGMENT_FILE } from '../../config';
+import { ENCODING_QUALITY, AUDIO_PARAMS, AUDIO_SURROUND_PARAMS, VIDEO_H264_PARAMS, VIDEO_H265_PARAMS, VIDEO_VP9_PARAMS, VIDEO_AV1_PARAMS, AUDIO_SPEED_PARAMS, AUDIO_SURROUND_OPUS_PARAMS, NEXT_GEN_ENCODING_QUALITY, SPLIT_SEGMENT_FOLDER, CONCAT_SEGMENT_FILE, THUMBNAIL_FOLDER, FFMPEG_RECONNECT_ARGS, HDR_TONEMAP_FILTER, EXPECTED_AUDIO_STREAMS, OPUS_STEREO_BITRATE, OPUS_SURROUND_BITRATE_PER_CHANNEL, MAX_AUDIO_CHANNELS, SURROUND_CHANNEL_COUNTS } from '../../config';
 import { HlsManifest, RcloneFile } from '../../common/interfaces';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
@@ -74,7 +74,7 @@ export class VideoService {
     this.RetryEncoding = false;
     this.CanRetryEncoding = false;
     this.TranscoderPriority = 0;
-    this.thumbnailFolder = 'thumbnails';
+    this.thumbnailFolder = THUMBNAIL_FOLDER;
   }
 
   async transcode(job: Job<IVideoData>, codec: number = 1) {
@@ -451,7 +451,7 @@ export class VideoService {
       let listAttempt = 1;
       // 1 source file (0 for linked source), 3 audio files, and video files
       const expectedVideoFiles = !job.data.advancedOptions?.audioOnly ? availableQualityList.length : 0;
-      const expectedAudioFiles = !job.data.advancedOptions?.videoOnly ? 3 : 0;
+      const expectedAudioFiles = !job.data.advancedOptions?.videoOnly ? EXPECTED_AUDIO_STREAMS : 0;
       const totalExpectedFiles = expectedVideoFiles + (job.data.linkedStorage ? 0 : 1) + expectedAudioFiles;
       const maxTries = 5;
       while (uploadedFiles.length < totalExpectedFiles && listAttempt < maxTries) {
@@ -522,7 +522,7 @@ export class VideoService {
       manifest, job
     });
     // Only encode opus surround if the source audio has 5 (4.1), 6 (5.1), 7 (6.1) or 8 (7.1) channels
-    if (type === 'normal' || [5, 6, 7, 8].includes(audioChannels)) {
+    if (type === 'normal' || SURROUND_CHANNEL_COUNTS.includes(audioChannels)) {
       this.logger.info('Audio codec: OPUS');
       await this.encodeAudio({
         inputFile, parsedInput, inputFileUrl, sourceInfo: { duration: audioDuration, channels: audioChannels, language, title: audioTitle },
@@ -887,7 +887,7 @@ export class VideoService {
 
   private createAudioEncodingArgs(options: CreateAudioEncodingArgsOptions) {
     const { inputFile, parsedInput, audioParams, codec, channels, downmix, audioIndex, outputFileName } = options;
-    const bitrate = AudioCodec.OPUS === codec ? 128 : AudioCodec.OPUS_SURROUND === codec ? 64 * channels : 0;
+    const bitrate = AudioCodec.OPUS === codec ? OPUS_STEREO_BITRATE : AudioCodec.OPUS_SURROUND === codec ? OPUS_SURROUND_BITRATE_PER_CHANNEL * channels : 0;
     const args: string[] = [
       '-hide_banner', '-y',
       '-progress', 'pipe:1',
@@ -896,10 +896,7 @@ export class VideoService {
       '-vn'
     ];
     if (this.UseURLInput) {
-      args.push(
-        '-reconnect', '1',
-        '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
-      );
+      args.push(...FFMPEG_RECONNECT_ARGS);
     }
     if (bitrate > 0) {
       args.push('-b:a', `${bitrate}K`);
@@ -917,7 +914,7 @@ export class VideoService {
         args.push('-mapping_family', '0');
       }
     } else if (channels > 2) {
-      const channelValue = channels <= 8 ? channels.toString() : '8'; // 8 channels (7.1) is the limit for both aac and opus
+      const channelValue = channels <= MAX_AUDIO_CHANNELS ? channels.toString() : MAX_AUDIO_CHANNELS.toString();
       args.push('-ac', channelValue);
       if (codec === AudioCodec.OPUS_SURROUND) {
         args.push('-mapping_family', '1');
@@ -950,10 +947,7 @@ export class VideoService {
       '-loglevel', 'error'
     ];
     if (this.UseURLInput) {
-      args.push(
-        '-reconnect', '1',
-        '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
-      );
+      args.push(...FFMPEG_RECONNECT_ARGS);
     }
     splitFrom && args.push('-ss', splitFrom);
     args.push('-i', `"${inputFile}"`);;
@@ -996,10 +990,7 @@ export class VideoService {
         '-loglevel', 'error'
       ];
       if (this.UseURLInput) {
-        args.push(
-          '-reconnect', '1',
-          '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
-        );
+        args.push(...FFMPEG_RECONNECT_ARGS);
       }
       splitFrom && args.push('-ss', splitFrom);
       args.push('-i', `"${inputFile}"`);
@@ -1038,10 +1029,7 @@ export class VideoService {
       '-loglevel', 'error'
     ];
     if (this.UseURLInput) {
-      args.push(
-        '-reconnect', '1',
-        '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
-      );
+      args.push(...FFMPEG_RECONNECT_ARGS);
     }
     splitFrom && args.push('-ss', splitFrom);
     args.push('-i', `"${inputFile}"`);
@@ -1146,7 +1134,7 @@ export class VideoService {
       videoFilters.push(`scale=-2:${options.quality}`);
     }
     if (options.hdrTonemap) {
-      videoFilters.push('zscale=t=linear:npl=100,format=gbrpf32le,tonemap=tonemap=mobius:desat=0,zscale=p=bt709:t=bt709:m=bt709:r=tv:d=error_diffusion');
+      videoFilters.push(HDR_TONEMAP_FILTER);
       if (options.bitDepth === 10) {
         videoFilters.push('format=yuv420p10le');
       } else {

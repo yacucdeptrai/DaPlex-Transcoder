@@ -10,6 +10,7 @@ import fs from 'fs';
 import child_process from 'child_process';
 
 import { ffmpegHelper } from './ffmpeg-helper.util';
+import { FFMPEG_RECONNECT_ARGS, HDR_TONEMAP_FILTER } from '../config';
 import { RejectCode } from '../enums/reject-code.enum';
 import { fileHelper } from './file-helper.util';
 import { rgbaToThumbHash } from './thumbhash.util';
@@ -326,7 +327,7 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
     ];
     // HDR tonemap filter
     if (input.isHDR)
-      videoFilters.push('zscale=t=linear:npl=100,format=gbrpf32le,tonemap=tonemap=mobius:desat=0,zscale=p=bt709:t=bt709:m=bt709:r=tv:d=error_diffusion,format=yuv420p');
+      videoFilters.push(`${HDR_TONEMAP_FILTER},format=yuv420p`);
 
     const args = [
       '-hide_banner', '-y',
@@ -335,10 +336,7 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
     ];
 
     if (input.useURLInput) {
-      args.push(
-        '-reconnect', '1',
-        '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
-      );
+      args.push(...FFMPEG_RECONNECT_ARGS);
     }
 
     args.push(

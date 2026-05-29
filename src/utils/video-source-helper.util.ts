@@ -4,6 +4,7 @@ import chokidar from 'chokidar';
 
 import { fileHelper } from './file-helper.util';
 import { ffmpegHelper } from './ffmpeg-helper.util';
+import { FFMPEG_RECONNECT_ARGS } from '../config';
 import { RejectCode } from '../enums';
 
 export interface ConvertOptions {
@@ -49,8 +50,7 @@ export class VideoSourceHelper {
 
       if (options.useURLInput) {
         args.push(
-          '-reconnect', '1',
-          '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
+          ...FFMPEG_RECONNECT_ARGS
         );
       }
 
@@ -154,8 +154,7 @@ export class VideoSourceHelper {
 
       if (options.useURLInput) {
         args.push(
-          '-reconnect', '1',
-          '-reconnect_on_http_error', '400,401,403,408,409,429,5xx',
+          ...FFMPEG_RECONNECT_ARGS
         );
       }
 
