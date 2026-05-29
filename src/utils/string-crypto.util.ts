@@ -2,7 +2,6 @@ import * as crypto from 'crypto';
 
 export class StringCrypto {
   algorithm: string = 'aes256';
-  iv: Buffer = crypto.randomBytes(16);
   key: string;
 
   constructor(secretKey: string) {
@@ -15,9 +14,13 @@ export class StringCrypto {
         reject('Encrypt failed: Crypto key is missing');
       if (!text)
         resolve(null);
-      const cipher = crypto.createCipheriv(this.algorithm, this.key, this.iv);
+      // Generate a fresh IV per call. Reusing a single IV across encryptions in CBC
+      // mode leaks information about identical plaintext prefixes. The IV is appended
+      // to the ciphertext (after '.') so decrypt() can recover it.
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
       const encrypted = cipher.update(text, 'utf-8', 'base64') + cipher.final('base64');
-      resolve(encrypted + '.' + this.iv.toString('base64'));
+      resolve(encrypted + '.' + iv.toString('base64'));
     });
   }
 
