@@ -1405,34 +1405,8 @@ export class VideoService {
     const gopSize = (sourceInfo.fps ? sourceInfo.fps * 2 : 48).toString();
     const bitDepth = codec === VideoCodec.H264 ? 8 : 10;
     const videoFilters = this.resolveVideoFilters({ quality, hdrTonemap: false, bitDepth });
-    if (pass === 1) {
-      const outputName = process.platform === 'win32' ? 'NUL' : '/dev/null';
-      const args = ['-hide_banner', '-y', '-hwaccel', 'auto', '-progress', 'pipe:1', '-loglevel', 'error'];
-      if (this.UseURLInput) {
-        args.push(...FFMPEG_RECONNECT_ARGS);
-      }
-      splitFrom && args.push('-ss', splitFrom);
-      args.push('-i', `"${inputFile}"`);
-      splitDuration && args.push('-t', splitDuration);
-      args.push(...videoParams, '-g', gopSize, '-keyint_min', gopSize, '-sc_threshold', '0');
-      if (encodingSetting) this.resolveEncodingSettings(args, encodingSetting, sourceInfo, crfKey);
-      if (codec === VideoCodec.H264) this.resolveH264Params(args, advancedSettings, quality, sourceInfo);
-      else if (codec === VideoCodec.AV1) this.resolveSVTAV1Params(args, advancedSettings, sourceInfo);
-      args.push(
-        '-map',
-        '0:v:0',
-        '-vf',
-        videoFilters
-        //'-movflags', '+faststart'
-      );
-      if (segmentIndex != null) {
-        args.push('-passlogfile', `"${parsedInput.dir}/${SPLIT_SEGMENT_FOLDER}/${parsedInput.name}_2pass.log"`);
-      } else {
-        args.push('-passlogfile', `"${parsedInput.dir}/${parsedInput.name}_2pass.log"`);
-      }
-      args.push('-pass', '1', '-an', '-f', 'null', outputName);
-      return args;
-    }
+    // Both passes share an identical prefix; only the stream mapping and the
+    // trailing -pass directive differ. Build the common args once.
     const args = ['-hide_banner', '-y', '-hwaccel', 'auto', '-progress', 'pipe:1', '-loglevel', 'error'];
     if (this.UseURLInput) {
       args.push(...FFMPEG_RECONNECT_ARGS);
@@ -1444,22 +1418,24 @@ export class VideoService {
     if (encodingSetting) this.resolveEncodingSettings(args, encodingSetting, sourceInfo, crfKey);
     if (codec === VideoCodec.H264) this.resolveH264Params(args, advancedSettings, quality, sourceInfo);
     else if (codec === VideoCodec.AV1) this.resolveSVTAV1Params(args, advancedSettings, sourceInfo);
-    args.push(
-      '-map',
-      '0:v:0',
-      //'-map_metadata', '-1',
-      '-map_chapters',
-      '-1',
-      '-vf',
-      videoFilters
-      //'-movflags', '+faststart'
-    );
-    if (segmentIndex != null) {
-      args.push('-passlogfile', `"${parsedInput.dir}/${SPLIT_SEGMENT_FOLDER}/${parsedInput.name}_2pass.log"`);
+
+    // Stream mapping: the final pass (2) also strips chapters before muxing output.
+    args.push('-map', '0:v:0');
+    if (pass === 2) args.push('-map_chapters', '-1');
+    args.push('-vf', videoFilters);
+    //'-movflags', '+faststart'
+
+    // Shared two-pass log file (segmented encodes write under the split folder).
+    const passLogDir = segmentIndex != null ? `${parsedInput.dir}/${SPLIT_SEGMENT_FOLDER}` : parsedInput.dir;
+    args.push('-passlogfile', `"${passLogDir}/${parsedInput.name}_2pass.log"`);
+
+    // Pass-specific tail: pass 1 analyzes to a null sink, pass 2 writes the output.
+    if (pass === 1) {
+      const nullSink = process.platform === 'win32' ? 'NUL' : '/dev/null';
+      args.push('-pass', '1', '-an', '-f', 'null', nullSink);
     } else {
-      args.push('-passlogfile', `"${parsedInput.dir}/${parsedInput.name}_2pass.log"`);
+      args.push('-pass', '2', `"${parsedInput.dir}/${outputFileName}"`);
     }
-    args.push('-pass', '2', `"${parsedInput.dir}/${outputFileName}"`);
     return args;
   }
 
