@@ -3,8 +3,6 @@ import { Progress } from '../common/entities';
 export class FFmpegHelper {
   parseProgress(data: string) {
     const tLines = data.split('\n');
-    if (tLines.length < 5)
-      console.log(data);
     const progress = new Progress();
     for (var i = 0; i < tLines.length; i++) {
       const key = tLines[i].split('=');

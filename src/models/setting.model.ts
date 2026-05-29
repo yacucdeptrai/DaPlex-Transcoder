@@ -39,6 +39,7 @@ const settingSchema = new Schema<ISetting>({
   _id: { type: Schema.Types.Mixed, required: true },
   defaultVideoCodecs: { type: Number },
   audioParams: { type: String },
+  audioSpeedParams: { type: String },
   audioSurroundParams: { type: String },
   audioSurroundOpusParams: { type: String },
   videoH264Params: { type: String },

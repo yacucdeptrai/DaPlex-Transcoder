@@ -3,23 +3,79 @@ import child_process from 'child_process';
 import { stringHelper } from './string-helper.util';
 
 export class MediaInfoHelper {
-  knwonEncodingSettings = ['cabac', 'ref', 'deblock', 'analyse', 'me', 'subme', 'psy', 'psy_rd', 'mixed_ref', 'me_range',
-    'chroma_me', 'trellis', '8x8dct', 'deadzone', 'fast_pskip', 'nr', 'decimate', 'interlaced', 'constrained_intra',
-    'bframes', 'b_pyramid', 'b_adapt', 'b_bias', 'direct', 'weightb', 'weightp', 'scenecut', 'intra_refresh', 'rc_lookahead', 'mbtree',
-    'nal_hrd', 'filler', 'ip_ratio', 'aq'
+  knownEncodingSettings = [
+    'cabac',
+    'ref',
+    'deblock',
+    'analyse',
+    'me',
+    'subme',
+    'psy',
+    'psy_rd',
+    'mixed_ref',
+    'me_range',
+    'chroma_me',
+    'trellis',
+    '8x8dct',
+    'deadzone',
+    'fast_pskip',
+    'nr',
+    'decimate',
+    'interlaced',
+    'constrained_intra',
+    'bframes',
+    'b_pyramid',
+    'b_adapt',
+    'b_bias',
+    'direct',
+    'weightb',
+    'weightp',
+    'scenecut',
+    'intra_refresh',
+    'rc_lookahead',
+    'mbtree',
+    'nal_hrd',
+    'filler',
+    'ip_ratio',
+    'aq'
   ];
 
-  multiResEncodingSettings = ['cabac', 'ref', 'deblock', 'analyse', 'me', 'subme', 'psy', 'psy_rd', 'mixed_ref', 'me_range',
-    'trellis', '8x8dct', 'deadzone', 'fast_pskip', 'nr', 'decimate', 'interlaced', 'constrained_intra', 'bframes',
-    'b_pyramid', 'b_bias', 'weightb', 'weightp', 'scenecut', 'intra_refresh', 'rc_lookahead', 'mbtree',
-    'nal_hrd', 'filler', 'ip_ratio', 'aq'
+  multiResEncodingSettings = [
+    'cabac',
+    'ref',
+    'deblock',
+    'analyse',
+    'me',
+    'subme',
+    'psy',
+    'psy_rd',
+    'mixed_ref',
+    'me_range',
+    'trellis',
+    '8x8dct',
+    'deadzone',
+    'fast_pskip',
+    'nr',
+    'decimate',
+    'interlaced',
+    'constrained_intra',
+    'bframes',
+    'b_pyramid',
+    'b_bias',
+    'weightb',
+    'weightp',
+    'scenecut',
+    'intra_refresh',
+    'rc_lookahead',
+    'mbtree',
+    'nal_hrd',
+    'filler',
+    'ip_ratio',
+    'aq'
   ];
 
   getMediaInfo(input: string, mediainfoDir: string) {
-    const args: string[] = [
-      `"${input}"`,
-      '--output=JSON'
-    ];
+    const args: string[] = [`"${input}"`, '--output=JSON'];
     return new Promise<MediaInfoResult>((resolve, reject) => {
       const mediainfo = child_process.spawn(`"${mediainfoDir}/mediainfo"`, args, { shell: true });
       let infoJson = '';
@@ -47,19 +103,17 @@ export class MediaInfoHelper {
   createH264Params(encodedLibrarySettings: string, sameRes: boolean = false) {
     if (!encodedLibrarySettings) return '';
     const settingList = encodedLibrarySettings.replace(/:/g, '\\:').split(' / ');
-    const encodingSettings = sameRes ? this.knwonEncodingSettings : this.multiResEncodingSettings;
-    const filteredList = settingList.filter(value => {
+    const encodingSettings = sameRes ? this.knownEncodingSettings : this.multiResEncodingSettings;
+    const filteredList = settingList.filter((value) => {
       const key = value.split('=')[0];
-      if (encodingSettings.indexOf(key) > -1)
-        return true
+      if (encodingSettings.indexOf(key) > -1) return true;
       return false;
     });
     return filteredList.join(':');
   }
 
   isHDRVideo(colorSpace: string, colorTransfer: string, colorPrimaries: string) {
-    if (colorSpace === 'bt2020nc' && colorTransfer === 'smpte2084' && colorPrimaries === 'bt2020')
-      return true;
+    if (colorSpace === 'bt2020nc' && colorTransfer === 'smpte2084' && colorPrimaries === 'bt2020') return true;
     return false;
   }
 

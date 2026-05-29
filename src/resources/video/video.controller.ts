@@ -14,7 +14,7 @@ export class VideoController {
   }
 
   @Post('resume')
-  resultWorker(): void {
+  resumeWorker(): void {
     return this.consumer.resumeWorker();
   }
 

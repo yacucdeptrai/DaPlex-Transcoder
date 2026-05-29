@@ -46,7 +46,7 @@ export abstract class BaseVideoConsumer extends WorkerHost {
 }
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.H264}`, { concurrency: 1 })
-export class VideoCosumerH264 extends BaseVideoConsumer {
+export class VideoConsumerH264 extends BaseVideoConsumer {
   constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
     super(logger);
   }
@@ -63,7 +63,7 @@ export class VideoCosumerH264 extends BaseVideoConsumer {
 }
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.H265}`, { concurrency: 1 })
-export class VideoCosumerH265 extends BaseVideoConsumer {
+export class VideoConsumerH265 extends BaseVideoConsumer {
   constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
     super(logger);
   }
@@ -80,7 +80,7 @@ export class VideoCosumerH265 extends BaseVideoConsumer {
 }
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.VP9}`, { concurrency: 1 })
-export class VideoCosumerVP9 extends BaseVideoConsumer {
+export class VideoConsumerVP9 extends BaseVideoConsumer {
   constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
     super(logger);
   }
@@ -97,7 +97,7 @@ export class VideoCosumerVP9 extends BaseVideoConsumer {
 }
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.AV1}`, { concurrency: 1 })
-export class VideoCosumerAV1 extends BaseVideoConsumer {
+export class VideoConsumerAV1 extends BaseVideoConsumer {
   constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
     super(logger);
   }

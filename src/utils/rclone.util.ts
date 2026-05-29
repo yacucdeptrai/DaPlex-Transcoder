@@ -431,7 +431,7 @@ export class RcloneHelper {
     try {
       logJson = JSON.parse(cleanData);
     } catch {
-      console.log(cleanData);
+      // Non-JSON progress lines are expected in rclone output; skip them.
       return null;
     }
     if (logJson.msg)
