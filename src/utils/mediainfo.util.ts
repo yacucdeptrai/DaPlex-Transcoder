@@ -47,7 +47,7 @@ export class MediaInfoHelper {
   createH264Params(encodedLibrarySettings: string, sameRes: boolean = false) {
     if (!encodedLibrarySettings) return '';
     const settingList = encodedLibrarySettings.replace(/:/g, '\\:').split(' / ');
-    const encodingSettings = sameRes ? this.knwonEncodingSettings : this.knwonEncodingSettings;
+    const encodingSettings = sameRes ? this.knwonEncodingSettings : this.multiResEncodingSettings;
     const filteredList = settingList.filter(value => {
       const key = value.split('=')[0];
       if (encodingSettings.indexOf(key) > -1)
