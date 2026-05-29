@@ -113,11 +113,14 @@ const defaultGeneratorOptions: GeneratorOptions = {
   format: 'jpeg'
 };
 
-export async function generateSprites(options: InputOptions, generatorOptionsList: GeneratorOptions[] = []): Promise<GeneratorOutput> {
+export async function generateSprites(
+  options: InputOptions,
+  generatorOptionsList: GeneratorOptions[] = []
+): Promise<GeneratorOutput> {
   if (!generatorOptionsList.length) {
     generatorOptionsList = [{ ...defaultGeneratorOptions }];
   } else {
-    generatorOptionsList = generatorOptionsList.map(options => ({ ...defaultGeneratorOptions, ...options }));
+    generatorOptionsList = generatorOptionsList.map((options) => ({ ...defaultGeneratorOptions, ...options }));
   }
 
   const sourceFile = options.source;
@@ -126,12 +129,9 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
   const tempPath = path.join(options.output, 'generated');
 
   // Make our directories
-  await Promise.all([
-    mkdirp(outputPath),
-    mkdirp(tempPath)
-  ]);
+  await Promise.all([mkdirp(outputPath), mkdirp(tempPath)]);
 
-  const maxThumbSize = Math.max(...generatorOptionsList.map(o => o.th), ...generatorOptionsList.map(o => o.tw));
+  const maxThumbSize = Math.max(...generatorOptionsList.map((o) => o.th), ...generatorOptionsList.map((o) => o.tw));
   const maxWidth = maxThumbSize;
   const maxHeight = maxThumbSize;
 
@@ -154,7 +154,7 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
       } else if (typeof e === 'object' && e !== null && 'code' in e) {
         // Handle encoding error
         options.logger?.info(`Received error ${e.code} from FFmpeg, retrying...`);
-        await new Promise(r => setTimeout(r, 30_000));
+        await new Promise((r) => setTimeout(r, 30_000));
         continue;
       }
       throw e;
@@ -168,7 +168,7 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
   const output: GeneratorOutput = {
     pageCount: 0,
     frameCount: predicted,
-    spritePaths: [],
+    spritePaths: []
   };
 
   for (let genOptIndex = 0; genOptIndex < generatorOptionsList.length; genOptIndex++) {
@@ -207,9 +207,8 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
     }
 
     for (let pageID = 0; pageID < pages; pageID++) {
-
       // How many can we fit on this sheet?
-      let remainder = predicted - (pageID * pageTotal);
+      let remainder = predicted - pageID * pageTotal;
       if (remainder > pageTotal) remainder = pageTotal;
 
       let width = Math.ceil(tw * pageCols);
@@ -248,10 +247,8 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
         const thumbFrameMeta = await sharp(imagePath).metadata();
         let thumbFrameInput: Buffer | string;
 
-        if (thumbFrameMeta.width === tw && thumbFrameMeta.height === th)
-          thumbFrameInput = imagePath;
-        else
-          thumbFrameInput = await sharp(imagePath).resize({ width: tw, height: th }).toBuffer();
+        if (thumbFrameMeta.width === tw && thumbFrameMeta.height === th) thumbFrameInput = imagePath;
+        else thumbFrameInput = await sharp(imagePath).resize({ width: tw, height: th }).toBuffer();
 
         // Push new thumbnail to the sprite
         overlayThumbs.push({ input: thumbFrameInput, top: dy, left: dx });
@@ -277,20 +274,16 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
         vttEndTime++;
       }
 
-      canvas
-        .composite(overlayThumbs)
-        .flatten();
+      canvas.composite(overlayThumbs).flatten();
 
       // Generate the final image.
       const finalPath = path.join(outputPath, finalFilename);
 
       // Set output format
-      if (generatorOptions.format === 'jpeg')
-        canvas.jpeg({ mozjpeg: true, progressive: true, quality: 80 });
+      if (generatorOptions.format === 'jpeg') canvas.jpeg({ mozjpeg: true, progressive: true, quality: 80 });
       else if (generatorOptions.format === 'webp')
         canvas.webp({ quality: 80, alphaQuality: 0, minSize: true, effort: 4 });
-      else if (generatorOptions.format === 'avif')
-        canvas.avif({ quality: 65, effort: 4 });
+      else if (generatorOptions.format === 'avif') canvas.avif({ quality: 65, effort: 4 });
 
       // Save to file
       await canvas.toFile(finalPath);
@@ -316,7 +309,13 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
   return output;
 }
 
-function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: number, maxHeight: number, input: InputOptions) {
+function generateThumbnails(
+  inputFile: string,
+  outputFolder: string,
+  maxWidth: number,
+  maxHeight: number,
+  input: InputOptions
+) {
   return new Promise<number>((resolve, reject) => {
     let isCancelled = false;
     let isProgressTimeout = false;
@@ -327,25 +326,25 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
       `fps=1/1,scale=if(gte(iw\\,ih)\\,min(${maxWidth}\\,iw)\\,-2):if(lt(iw\\,ih)\\,min(${maxHeight}\\,ih)\\,-2)`
     ];
     // HDR tonemap filter
-    if (input.isHDR)
-      videoFilters.push(`${HDR_TONEMAP_FILTER},format=yuv420p`);
+    if (input.isHDR) videoFilters.push(`${HDR_TONEMAP_FILTER},format=yuv420p`);
 
-    const args = [
-      '-hide_banner', '-y',
-      '-progress', 'pipe:1',
-      '-loglevel', 'error'
-    ];
+    const args = ['-hide_banner', '-y', '-progress', 'pipe:1', '-loglevel', 'error'];
 
     if (input.useURLInput) {
       args.push(...FFMPEG_RECONNECT_ARGS);
     }
 
     args.push(
-      '-i', `"${inputFile}"`,
-      '-vf', `"${videoFilters.join(',')}"`,
-      '-qmin', '1',
-      '-qscale:v', '1',
-      '-f', 'image2',
+      '-i',
+      `"${inputFile}"`,
+      '-vf',
+      `"${videoFilters.join(',')}"`,
+      '-qmin',
+      '1',
+      '-qscale:v',
+      '1',
+      '-f',
+      'image2',
       `"${outputFolder}/thumb_%d.png"`
     );
 
@@ -356,8 +355,7 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
     ffmpeg.stdout.setEncoding('utf8');
     ffmpeg.stdout.on('data', async (data: string) => {
       const progress = ffmpegHelper.parseProgress(data);
-      if(!isEqualShallow(lastProgress, progress))
-        isProgressTimeout = false;
+      if (!isEqualShallow(lastProgress, progress)) isProgressTimeout = false;
       lastProgress = { ...progress };
       generatedFrames = progress.frame || 0;
       const percent = ffmpegHelper.progressPercent(progress.outTimeMs, input.duration * 1000000);
@@ -371,7 +369,7 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
 
     const cancelledJobChecker = createCancelChecker(
       () => input.canceledJobIds,
-      ids => (input.canceledJobIds = ids),
+      (ids) => (input.canceledJobIds = ids),
       input.jobId,
       () => {
         isCancelled = true;
@@ -409,7 +407,11 @@ function generateThumbnails(inputFile: string, outputFolder: string, maxWidth: n
 
 async function createThumbhash(input: string | Buffer, srcWidth: number, srcHeight: number) {
   const scaledSizes = getScaledSizes(srcWidth, srcHeight, 100, 100);
-  const rgba = await sharp(input).resize({ width: scaledSizes.width, height: scaledSizes.height }).ensureAlpha().raw().toBuffer();
+  const rgba = await sharp(input)
+    .resize({ width: scaledSizes.width, height: scaledSizes.height })
+    .ensureAlpha()
+    .raw()
+    .toBuffer();
   const thumbhash = rgbaToThumbHash(scaledSizes.width, scaledSizes.height, rgba);
   return Buffer.from(thumbhash).toString('base64').replace(/\=+$/, '');
 }
