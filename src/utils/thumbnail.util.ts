@@ -150,7 +150,7 @@ export async function generateSprites(options: InputOptions, generatorOptionsLis
       if (e === RejectCode.ENCODING_TIMEOUT) {
         options.logger?.info('Retrying encoding (timed out)');
         continue;
-      } else if (e.code) {
+      } else if (typeof e === 'object' && e !== null && 'code' in e) {
         // Handle encoding error
         options.logger?.info(`Received error ${e.code} from FFmpeg, retrying...`);
         await new Promise(r => setTimeout(r, 30_000));

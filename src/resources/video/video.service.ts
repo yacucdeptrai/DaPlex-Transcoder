@@ -760,7 +760,7 @@ export class VideoService {
             } else if (e === RejectCode.ENCODING_TIMEOUT) {
               this.logger.info('Retrying encoding (timed out)');
               continue;
-            } else if (e.code) {
+            } else if (typeof e === 'object' && e !== null && 'code' in e) {
               // Handle encoding error
               this.logger.info(`Received error ${e.code} from FFmpeg, retrying...`);
               await new Promise(r => setTimeout(r, 30_000));
@@ -791,7 +791,7 @@ export class VideoService {
             } else if (e === RejectCode.ENCODING_TIMEOUT) {
               this.logger.info('Retrying encoding (timed out)');
               continue;
-            } else if (e.code) {
+            } else if (typeof e === 'object' && e !== null && 'code' in e) {
               this.logger.info(`Received error ${e.code} from FFmpeg, retrying...`);
               await new Promise(r => setTimeout(r, 30_000));
               continue;
