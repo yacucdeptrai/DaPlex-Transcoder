@@ -6,7 +6,7 @@ import { VideoService } from './video.service';
 
 @Controller('video')
 export class VideoController {
-  constructor(private consumer: BaseVideoConsumer, private videoService: VideoService) { }
+  constructor(private consumer: BaseVideoConsumer, private videoService: VideoService) {}
 
   @Post('pause')
   pauseWorker(): Promise<void> {

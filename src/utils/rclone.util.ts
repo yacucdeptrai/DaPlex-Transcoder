@@ -21,8 +21,7 @@ export class RcloneHelper {
     let newConfig = `[${storage._id}]\n`;
     if (storage.kind === 3) {
       newConfig += 'type = drive\n';
-    }
-    else {
+    } else {
       newConfig += 'type = onedrive\n';
     }
     newConfig += `client_id = ${storage.clientId}\n`;
@@ -72,19 +71,32 @@ export class RcloneHelper {
     return { endpoint, bucket, folderPrefix };
   }
 
-  downloadFile(configPath: string, rcloneDir: string, remote: string, folder: string, file: string,
-    saveFolder: string, useFilter: boolean, logFn: (args: string[]) => void) {
+  downloadFile(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    folder: string,
+    file: string,
+    saveFolder: string,
+    useFilter: boolean,
+    logFn: (args: string[]) => void
+  ) {
     const filePath = path.posix.join(folder, file);
-    const copyArgs = useFilter ?
-      [`"${remote}:${folder}"`, saveFolder, '--include', `"${stringHelper.escapeRegExp(file)}"`] :
-      [`"${remote}:${filePath}"`, saveFolder];
+    const copyArgs = useFilter
+      ? [`"${remote}:${folder}"`, saveFolder, '--include', `"${stringHelper.escapeRegExp(file)}"`]
+      : [`"${remote}:${filePath}"`, saveFolder];
     const args: string[] = [
       '--ignore-checksum',
-      '--config', `"${configPath}"`,
-      '--low-level-retries', '5',
-      '-v', '--use-json-log',
-      '--stats', '3s',
-      'copy', ...copyArgs
+      '--config',
+      `"${configPath}"`,
+      '--low-level-retries',
+      '5',
+      '-v',
+      '--use-json-log',
+      '--stats',
+      '3s',
+      'copy',
+      ...copyArgs
     ];
     logFn(args);
     //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
@@ -95,28 +107,28 @@ export class RcloneHelper {
       rclone.stderr.setEncoding('utf8');
       rclone.stderr.on('data', (data) => {
         const progress = this.parseRcloneUploadProgress(data);
-        if (progress)
-          stdout.write(`${progress.msg}\r`);
+        if (progress) stdout.write(`${progress.msg}\r`);
         errorMessage = data;
       });
 
       rclone.on('exit', (code) => {
         stdout.write('\n');
-        if (code === 0 || code === 9)
-          resolve();
-        else
-          reject({ code: code, message: errorMessage })
+        if (code === 0 || code === 9) resolve();
+        else reject({ code: code, message: errorMessage });
       });
     });
   }
 
-  async readRemoteFile(configPath: string, rcloneDir: string, remote: string, folder: string, file: string,
-    logFn: (args: string[]) => void) {
+  async readRemoteFile(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    folder: string,
+    file: string,
+    logFn: (args: string[]) => void
+  ) {
     const filePath = path.posix.join(folder, file);
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'cat', `"${remote}:${filePath}"`
-    ];
+    const args: string[] = ['--config', `"${configPath}"`, 'cat', `"${remote}:${filePath}"`];
     logFn(args);
     return new Promise<string>((resolve, reject) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
@@ -132,19 +144,20 @@ export class RcloneHelper {
       });
 
       rclone.on('exit', (code) => {
-        if (code !== 0)
-          reject({ code: code, message: errorMessage })
-        else
-          resolve(fileContent);
+        if (code !== 0) reject({ code: code, message: errorMessage });
+        else resolve(fileContent);
       });
     });
   }
 
-  async deletePath(configPath: string, rcloneDir: string, remote: string, path: string, logFn: (args: string[]) => void) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'purge', `"${remote}:${path}"`
-    ];
+  async deletePath(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    path: string,
+    logFn: (args: string[]) => void
+  ) {
+    const args: string[] = ['--config', `"${configPath}"`, 'purge', `"${remote}:${path}"`];
     logFn(args);
     const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
     if (!pathExist) return;
@@ -158,19 +171,20 @@ export class RcloneHelper {
       });
 
       rclone.on('exit', (code) => {
-        if (code === 0 || code === 9)
-          resolve();
-        else
-          reject({ code: code, message: errorMessage })
+        if (code === 0 || code === 9) resolve();
+        else reject({ code: code, message: errorMessage });
       });
     });
   }
 
-  async deleteFile(configPath: string, rcloneDir: string, remote: string, path: string, logFn: (args: string[]) => void) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'delete', `"${remote}:${path}"`
-    ];
+  async deleteFile(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    path: string,
+    logFn: (args: string[]) => void
+  ) {
+    const args: string[] = ['--config', `"${configPath}"`, 'delete', `"${remote}:${path}"`];
     logFn(args);
     const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
     if (!pathExist) return;
@@ -184,21 +198,21 @@ export class RcloneHelper {
       });
 
       rclone.on('exit', (code) => {
-        if (code === 0 || code === 9)
-          resolve();
-        else
-          reject({ code: code, message: errorMessage })
+        if (code === 0 || code === 9) resolve();
+        else reject({ code: code, message: errorMessage });
       });
     });
   }
 
-  async emptyPath(configPath: string, rcloneDir: string, remote: string, path: string, logFn: (args: string[]) => void,
-    options: RcloneCommandOptions = {}) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'delete', `"${remote}:${path}"`,
-      '--rmdirs'
-    ];
+  async emptyPath(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    path: string,
+    logFn: (args: string[]) => void,
+    options: RcloneCommandOptions = {}
+  ) {
+    const args: string[] = ['--config', `"${configPath}"`, 'delete', `"${remote}:${path}"`, '--rmdirs'];
     options.include && args.push('--include', options.include);
     options.exclude && args.push('--exclude', options.exclude);
     logFn(args);
@@ -213,20 +227,14 @@ export class RcloneHelper {
       });
 
       rclone.on('exit', (code) => {
-        if (code === 0 || code === 9)
-          resolve();
-        else
-          reject({ code: code, message: errorMessage })
+        if (code === 0 || code === 9) resolve();
+        else reject({ code: code, message: errorMessage });
       });
     });
   }
 
   deleteRemote(configPath: string, rcloneDir: string, remote: string, logFn: (args: string[]) => void) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'config', 'delete',
-      remote
-    ];
+    const args: string[] = ['--config', `"${configPath}"`, 'config', 'delete', remote];
     logFn(args);
     //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<void>((resolve, reject) => {
@@ -238,20 +246,20 @@ export class RcloneHelper {
       });
 
       rclone.on('exit', (code) => {
-        if (code === 0 || code === 9)
-          resolve();
-        else
-          reject({ code: code, message: errorMessage })
+        if (code === 0 || code === 9) resolve();
+        else reject({ code: code, message: errorMessage });
       });
     });
   }
 
-  listRemoteJson(configPath: string, rcloneDir: string, remote: string, folder: string,
-    options: RcloneCommandOptions = {}) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'lsjson', `"${remote}:${folder}"`
-    ];
+  listRemoteJson(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    folder: string,
+    options: RcloneCommandOptions = {}
+  ) {
+    const args: string[] = ['--config', `"${configPath}"`, 'lsjson', `"${remote}:${folder}"`];
     options.dirsOnly && args.push('--dirs-only');
     options.filesOnly && args.push('--files-only');
     options.recursive && args.push('--recursive');
@@ -283,11 +291,7 @@ export class RcloneHelper {
   }
 
   isPathExist(configPath: string, rcloneDir: string, remote: string, path: string) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      '--low-level-retries', '1',
-      'lsd', `"${remote}:${path}"`
-    ];
+    const args: string[] = ['--config', `"${configPath}"`, '--low-level-retries', '1', 'lsd', `"${remote}:${path}"`];
     //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<boolean>((resolve) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
@@ -302,11 +306,7 @@ export class RcloneHelper {
   }
 
   mkdirRemote(configPath: string, rcloneDir: string, remote: string, path: string) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      '--low-level-retries', '5',
-      'mkdir', `"${remote}:${path}"`
-    ];
+    const args: string[] = ['--config', `"${configPath}"`, '--low-level-retries', '5', 'mkdir', `"${remote}:${path}"`];
     //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<boolean>((resolve) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
@@ -321,10 +321,7 @@ export class RcloneHelper {
   }
 
   findAllRemotes(configPath: string, rcloneDir: string) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'listremotes'
-    ];
+    const args: string[] = ['--config', `"${configPath}"`, 'listremotes'];
     return new Promise<string[]>((resolve, reject) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
 
@@ -345,7 +342,7 @@ export class RcloneHelper {
         if (code !== 0) {
           reject({ code: code, message: errorMessage });
         } else {
-          const remoteList = remoteListString.split('\n').filter(r => !!r);
+          const remoteList = remoteListString.split('\n').filter((r) => !!r);
           resolve(remoteList);
         }
       });
@@ -361,10 +358,7 @@ export class RcloneHelper {
       if (!remoteType || !allowedTypes.includes(remoteType)) {
         continue;
       }
-      const args: string[] = [
-        '--config', `"${configPath}"`,
-        'about', remote
-      ];
+      const args: string[] = ['--config', `"${configPath}"`, 'about', remote];
       logFn(args);
       await new Promise<void>((resolve, reject) => {
         const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
@@ -387,10 +381,7 @@ export class RcloneHelper {
   }
 
   private getRemoteTypes(configPath: string, rcloneDir: string) {
-    const args: string[] = [
-      '--config', `"${configPath}"`,
-      'listremotes', '--long'
-    ];
+    const args: string[] = ['--config', `"${configPath}"`, 'listremotes', '--long'];
     return new Promise<Map<string, string>>((resolve, reject) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
 
@@ -412,9 +403,9 @@ export class RcloneHelper {
           reject({ code: code, message: errorMessage });
         } else {
           const remoteTypes = new Map<string, string>();
-          const lines = remoteListString.split('\n').filter(r => !!r);
+          const lines = remoteListString.split('\n').filter((r) => !!r);
           for (const line of lines) {
-            const [remote, type] = line.split(':').map(s => s.trim());
+            const [remote, type] = line.split(':').map((s) => s.trim());
             if (remote && type) {
               remoteTypes.set(`${remote}:`, type);
             }

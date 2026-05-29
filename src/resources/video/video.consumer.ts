@@ -47,7 +47,10 @@ export abstract class BaseVideoConsumer extends WorkerHost {
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.H264}`, { concurrency: 1 })
 export class VideoConsumerH264 extends BaseVideoConsumer {
-  constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger,
+    private readonly videoService: VideoService
+  ) {
     super(logger);
   }
 
@@ -64,7 +67,10 @@ export class VideoConsumerH264 extends BaseVideoConsumer {
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.H265}`, { concurrency: 1 })
 export class VideoConsumerH265 extends BaseVideoConsumer {
-  constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger,
+    private readonly videoService: VideoService
+  ) {
     super(logger);
   }
 
@@ -81,7 +87,10 @@ export class VideoConsumerH265 extends BaseVideoConsumer {
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.VP9}`, { concurrency: 1 })
 export class VideoConsumerVP9 extends BaseVideoConsumer {
-  constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger,
+    private readonly videoService: VideoService
+  ) {
     super(logger);
   }
 
@@ -98,7 +107,10 @@ export class VideoConsumerVP9 extends BaseVideoConsumer {
 
 @Processor(`${TaskQueue.VIDEO_TRANSCODE}:${VideoCodec.AV1}`, { concurrency: 1 })
 export class VideoConsumerAV1 extends BaseVideoConsumer {
-  constructor(@Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger, private readonly videoService: VideoService) {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) protected readonly logger: Logger,
+    private readonly videoService: VideoService
+  ) {
     super(logger);
   }
 

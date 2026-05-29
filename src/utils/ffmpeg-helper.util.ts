@@ -46,83 +46,69 @@ export class FFmpegHelper {
   }
 
   progressPercent(current: number, videoDuration: number) {
-    return videoDuration ? Math.trunc(current / videoDuration * 100) : 0;
+    return videoDuration ? Math.trunc((current / videoDuration) * 100) : 0;
   }
 
   getProgressMessage(progress: Progress, percent: number) {
-    return `Encoding: ${percent}% - frame: ${progress.frame || 'N/A'} - fps: ${progress.fps || 'N/A'} - bitrate: ${progress.bitrate} - time: ${progress.outTime} - speed: ${progress.speed}`;
+    return `Encoding: ${percent}% - frame: ${progress.frame || 'N/A'} - fps: ${progress.fps || 'N/A'} - bitrate: ${
+      progress.bitrate
+    } - time: ${progress.outTime} - speed: ${progress.speed}`;
   }
 
   findH264ProfileLevel(srcWidth: number, srcHeight: number, targetHeight: number, fps: number) {
-    const targetWidth = targetHeight * srcWidth / srcHeight;
+    const targetWidth = (targetHeight * srcWidth) / srcHeight;
     const targetFrameSize = targetWidth * targetHeight;
     // 4K 2160p
-    if (targetFrameSize >= (3840 * 2160)) {
-      if (targetFrameSize <= (4096 * 2160)) {
-        if (fps <= 28)
-          return '5.1';
-        if (fps <= 60)
-          return '5.2';
+    if (targetFrameSize >= 3840 * 2160) {
+      if (targetFrameSize <= 4096 * 2160) {
+        if (fps <= 28) return '5.1';
+        if (fps <= 60) return '5.2';
         return null;
       }
-      if (targetFrameSize <= (4096 * 2304)) {
-        if (fps <= 26)
-          return '5.1';
-        if (fps <= 56)
-          return '5.2';
+      if (targetFrameSize <= 4096 * 2304) {
+        if (fps <= 26) return '5.1';
+        if (fps <= 56) return '5.2';
         return null;
       }
     }
     // 2K 1440p
-    if (targetFrameSize >= (2560 * 1440)) {
-      if (fps <= 30)
-        return '5';
-      if (fps <= 60)
-        return '5.1';
+    if (targetFrameSize >= 2560 * 1440) {
+      if (fps <= 30) return '5';
+      if (fps <= 60) return '5.1';
       return null;
     }
     // FHD 1080p
-    if (targetFrameSize >= (1920 * 1080)) {
-      if (targetFrameSize <= (2048 * 1088)) {
-        if (fps <= 30)
-          return '4.1';
-        if (fps <= 60)
-          return '4.2';
+    if (targetFrameSize >= 1920 * 1080) {
+      if (targetFrameSize <= 2048 * 1088) {
+        if (fps <= 30) return '4.1';
+        if (fps <= 60) return '4.2';
         return null;
       }
-      if (targetFrameSize <= (2560 * 1439)) {
-        if (fps <= 30)
-          return '5';
-        if (fps <= 60)
-          return '5.1';
+      if (targetFrameSize <= 2560 * 1439) {
+        if (fps <= 30) return '5';
+        if (fps <= 60) return '5.1';
         return null;
       }
     }
     // HD 720p
-    if (targetFrameSize >= (1280 * 720)) {
+    if (targetFrameSize >= 1280 * 720) {
       if (targetFrameSize === 1280 * 720) {
-        if (fps <= 30)
-          return '3.1';
-        if (fps <= 60)
-          return '3.2';
+        if (fps <= 30) return '3.1';
+        if (fps <= 60) return '3.2';
       }
-      if (targetFrameSize <= (1280 * 1024)) {
-        if (fps <= 30)
-          return '3.2';
-        if (fps <= 60)
-          return '4.2';
+      if (targetFrameSize <= 1280 * 1024) {
+        if (fps <= 30) return '3.2';
+        if (fps <= 60) return '4.2';
         return null;
       }
-      if (targetFrameSize <= (1920 * 1079)) {
-        if (fps <= 30)
-          return '5';
-        if (fps <= 60)
-          return '5.1';
+      if (targetFrameSize <= 1920 * 1079) {
+        if (fps <= 30) return '5';
+        if (fps <= 60) return '5.1';
         return null;
       }
     }
     // SD 480p
-    if (targetFrameSize >= (854 * 480)) {
+    if (targetFrameSize >= 854 * 480) {
       if (targetFrameSize <= 720 * 576) {
         return '3.1';
       }

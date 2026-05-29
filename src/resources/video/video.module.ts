@@ -5,19 +5,22 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
 import { VideoService } from './video.service';
-import { BaseVideoConsumer, VideoConsumerAV1, VideoConsumerH264, VideoConsumerH265, VideoConsumerVP9 } from './video.consumer';
+import {
+  BaseVideoConsumer,
+  VideoConsumerAV1,
+  VideoConsumerH264,
+  VideoConsumerH265,
+  VideoConsumerVP9
+} from './video.consumer';
 import { DaplexApiModule } from '../../common/modules/daplex-api';
 import { TranscoderApiModule } from '../../common/modules/transcoder-api';
 import { TaskQueue, VideoCodec } from '../../enums';
 import { VideoController } from './video.controller';
 
 function getTargetConsumer(consumerCodec: number) {
-  if (consumerCodec === VideoCodec.H265)
-    return VideoConsumerH265;
-  if (consumerCodec === VideoCodec.AV1)
-    return VideoConsumerAV1;
-  else if (consumerCodec === VideoCodec.VP9)
-    return VideoConsumerVP9;
+  if (consumerCodec === VideoCodec.H265) return VideoConsumerH265;
+  if (consumerCodec === VideoCodec.AV1) return VideoConsumerAV1;
+  else if (consumerCodec === VideoCodec.VP9) return VideoConsumerVP9;
   return VideoConsumerH264;
 }
 
@@ -49,4 +52,4 @@ function getTargetConsumer(consumerCodec: number) {
   exports: [VideoService],
   controllers: [VideoController]
 })
-export class VideoModule { }
+export class VideoModule {}

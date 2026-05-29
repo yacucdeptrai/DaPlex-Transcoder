@@ -7,7 +7,7 @@ describe('VideoConsumer', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [VideoConsumerH264, VideoService],
+      providers: [VideoConsumerH264, VideoService]
     }).compile();
 
     controller = module.get<VideoConsumerH264>(VideoConsumerH264);
