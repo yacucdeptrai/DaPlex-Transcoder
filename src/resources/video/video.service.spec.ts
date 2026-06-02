@@ -8,6 +8,7 @@ import { TaskQueue } from '../../enums';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import { EncodingArgsService } from './encoding-args.service';
+import { QualityResolverService } from './quality-resolver.service';
 
 describe('VideoService', () => {
   let service: VideoService;
@@ -17,6 +18,7 @@ describe('VideoService', () => {
       providers: [
         VideoService,
         EncodingArgsService,
+        QualityResolverService,
         {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() }

@@ -6,6 +6,7 @@ import { Logger } from 'winston';
 
 import { VideoService } from './video.service';
 import { EncodingArgsService } from './encoding-args.service';
+import { QualityResolverService } from './quality-resolver.service';
 import {
   BaseVideoConsumer,
   VideoConsumerAV1,
@@ -41,6 +42,7 @@ function getTargetConsumer(consumerCodec: number) {
   providers: [
     VideoService,
     EncodingArgsService,
+    QualityResolverService,
     {
       provide: BaseVideoConsumer,
       useFactory: (configService: ConfigService, logger: Logger, videoService: VideoService) => {
