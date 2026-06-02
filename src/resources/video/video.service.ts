@@ -28,6 +28,7 @@ import {
   ValidateSourceQualityOptions
 } from './interfaces';
 import { EncodingArgsService } from './encoding-args.service';
+import { QualityResolverService } from './quality-resolver.service';
 import { AudioCodec, StatusCode, VideoCodec, RejectCode, TaskQueue } from '../../enums';
 import {
   ENCODING_QUALITY,
@@ -46,7 +47,7 @@ import {
   EXPECTED_AUDIO_STREAMS,
   SURROUND_CHANNEL_COUNTS
 } from '../../config';
-import { HlsManifest, RcloneFile } from '../../common/interfaces';
+import { RcloneFile } from '../../common/interfaces';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import {
@@ -103,7 +104,8 @@ export class VideoService {
     private configService: ConfigService,
     private daplexApiService: DaplexApiService,
     private transcoderApiService: TranscoderApiService,
-    private encodingArgs: EncodingArgsService
+    private encodingArgs: EncodingArgsService,
+    private qualityResolver: QualityResolverService
   ) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
     this.AudioParams = audioParams ? audioParams.split(' ') : AUDIO_PARAMS;
@@ -374,7 +376,11 @@ export class VideoService {
     const manifest = new StreamManifest();
     // Load manifest if encode audio or video only
     if (job.data.advancedOptions?.audioOnly || job.data.advancedOptions?.videoOnly) {
-      const existingManifestData = await this.findExistingManifest(job.data.storage, job.data._id, codec);
+      const existingManifestData = await this.qualityResolver.findExistingManifest(
+        job.data.storage,
+        job.data._id,
+        codec
+      );
       if (existingManifestData !== null) {
         manifest.load(existingManifestData);
         job.data.advancedOptions?.audioOnly && manifest.clearTracks('audio');
@@ -1539,54 +1545,6 @@ export class VideoService {
     return externalStorage.publicUrl.replace(':service_path', 's3').replace(':path', sourcePath);
   }
 
-  private async findAvailableQuality(
-    uploadedFiles: string[],
-    allQualityList: number[],
-    parsedInput: path.ParsedPath,
-    codec: number,
-    replaceStreams: string[] = [],
-    job: Job<IVideoData>
-  ) {
-    const fileIds: bigint[] = [];
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      const uploadedFileName = uploadedFiles[i].split('/').pop();
-      if (!allQualityList.find((q) => uploadedFileName === `${parsedInput.name}_${q}.mp4`)) continue;
-      const stringId = uploadedFiles[i].split('/')[0];
-      if (replaceStreams.includes(stringId)) continue;
-      if (isNaN(<any>stringId)) continue;
-      fileIds.push(BigInt(stringId));
-    }
-    await mongoose.connect(this.configService.get<string>('DATABASE_URL'), { family: 4, useBigInt64: true });
-    const sourceFileMeta = await mediaStorageModel
-      .findOne({ _id: BigInt(job.data._id) })
-      .lean()
-      .exec();
-    await mongoose.disconnect();
-    const qualityList = sourceFileMeta.streams
-      .filter((file) => file.codec === codec && fileIds.includes(file._id))
-      .map((file) => file.quality);
-    const availableQualityList = allQualityList.filter((quality) => !qualityList.includes(quality));
-    return availableQualityList;
-  }
-
-  private calculateQuality(
-    height: number,
-    qualityList: number[],
-    forcedQualityList: number[] = [],
-    fallbackQualityList: number[] = []
-  ) {
-    const availableQualityList: number[] = [];
-    if (!height) return availableQualityList;
-    for (let i = 0; i < qualityList.length; i++) {
-      if (height >= qualityList[i] || forcedQualityList.includes(qualityList[i])) {
-        availableQualityList.push(qualityList[i]);
-      }
-    }
-    // Use the lowest quality when there is no suitable one
-    if (!availableQualityList.length) availableQualityList.push(...fallbackQualityList);
-    return availableQualityList;
-  }
-
   private async validateSourceQuality(options: ValidateSourceQualityOptions): Promise<number[] | null> {
     const {
       parsedInput,
@@ -1598,7 +1556,12 @@ export class VideoService {
       retryFromInterruption,
       job
     } = options;
-    const allQualityList = this.calculateQuality(quality, qualityList, forcedQualityList, fallbackQualityList);
+    const allQualityList = this.qualityResolver.calculateQuality(
+      quality,
+      qualityList,
+      forcedQualityList,
+      fallbackQualityList
+    );
     this.logger.info(`All quality: ${allQualityList.length ? allQualityList.join(', ') : 'None'}`);
     // if (!allQualityList.length) {
     //   const statusError = await this.generateStatusError(StatusCode.LOW_QUALITY_VIDEO, job, { discard: true });
@@ -1609,9 +1572,13 @@ export class VideoService {
       // Check already encoded files
       this.logger.info('Checking already encoded files');
       let alreadyEncodedFiles: string[] = [];
-      const existingManifestData = await this.findExistingManifest(job.data.storage, job.data._id, codec);
+      const existingManifestData = await this.qualityResolver.findExistingManifest(
+        job.data.storage,
+        job.data._id,
+        codec
+      );
       if (existingManifestData?.videoTracks) alreadyEncodedFiles = existingManifestData.videoTracks.map((t) => t.uri);
-      availableQualityList = await this.findAvailableQuality(
+      availableQualityList = await this.qualityResolver.findAvailableQuality(
         alreadyEncodedFiles,
         allQualityList,
         parsedInput,
@@ -1648,32 +1615,6 @@ export class VideoService {
       );
     }
     return availableQualityList;
-  }
-
-  private async findExistingManifest(remote: string, parentFolder: string, codec: number) {
-    const rcloneConfigFile = this.configService.get<string>('RCLONE_CONFIG_FILE');
-    const rcloneDir = this.configService.get<string>('RCLONE_DIR');
-    const isFolderExist = await rcloneHelper.isPathExist(rcloneConfigFile, rcloneDir, remote, parentFolder);
-    if (!isFolderExist) return null;
-    const [manifestFileInfo] = await rcloneHelper.listRemoteJson(rcloneConfigFile, rcloneDir, remote, parentFolder, {
-      filesOnly: true,
-      recursive: true,
-      include: `*/manifest_${codec}.json`
-    });
-    if (!manifestFileInfo) return null;
-    this.logger.info(`Found existing manifest from ${manifestFileInfo.Path}, reading data...`);
-    const manifestContent = await rcloneHelper.readRemoteFile(
-      rcloneConfigFile,
-      rcloneDir,
-      remote,
-      parentFolder,
-      manifestFileInfo.Path,
-      (args) => {
-        this.logger.info('rclone ' + args.join(' '));
-      }
-    );
-    if (!manifestContent) return null;
-    return <HlsManifest>JSON.parse(manifestContent);
   }
 
   private async decryptToken(storage: IStorage) {
