@@ -5,6 +5,7 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
 import { VideoService } from './video.service';
+import { EncodingArgsService } from './encoding-args.service';
 import {
   BaseVideoConsumer,
   VideoConsumerAV1,
@@ -39,6 +40,7 @@ function getTargetConsumer(consumerCodec: number) {
   ],
   providers: [
     VideoService,
+    EncodingArgsService,
     {
       provide: BaseVideoConsumer,
       useFactory: (configService: ConfigService, logger: Logger, videoService: VideoService) => {

@@ -24,13 +24,10 @@ import {
   EncodeAudioOptions,
   EncodeVideoOptions,
   VideoSourceInfo,
-  CreateAudioEncodingArgsOptions,
-  CreateVideoEncodingArgsOptions,
   EncodeAudioByTrackOptions,
-  AdvancedVideoSettings,
-  ResolveVideoFiltersOptions,
   ValidateSourceQualityOptions
 } from './interfaces';
+import { EncodingArgsService } from './encoding-args.service';
 import { AudioCodec, StatusCode, VideoCodec, RejectCode, TaskQueue } from '../../enums';
 import {
   ENCODING_QUALITY,
@@ -46,12 +43,7 @@ import {
   SPLIT_SEGMENT_FOLDER,
   CONCAT_SEGMENT_FILE,
   THUMBNAIL_FOLDER,
-  FFMPEG_RECONNECT_ARGS,
-  HDR_TONEMAP_FILTER,
   EXPECTED_AUDIO_STREAMS,
-  OPUS_STEREO_BITRATE,
-  OPUS_SURROUND_BITRATE_PER_CHANNEL,
-  MAX_AUDIO_CHANNELS,
   SURROUND_CHANNEL_COUNTS
 } from '../../config';
 import { HlsManifest, RcloneFile } from '../../common/interfaces';
@@ -110,7 +102,8 @@ export class VideoService {
     private videoResultQueue: Queue<MediaQueueResult, Record<string, never>, JobNameType>,
     private configService: ConfigService,
     private daplexApiService: DaplexApiService,
-    private transcoderApiService: TranscoderApiService
+    private transcoderApiService: TranscoderApiService,
+    private encodingArgs: EncodingArgsService
   ) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
     this.AudioParams = audioParams ? audioParams.split(' ') : AUDIO_PARAMS;
@@ -512,7 +505,7 @@ export class VideoService {
               this.logger.info(message);
             }
           });
-          const moveRemuxFileArgs = this.createRcloneMoveArgs(remuxFilePath, remuxUrlFolder);
+          const moveRemuxFileArgs = this.encodingArgs.createRcloneMoveArgs(remuxFilePath, remuxUrlFolder);
           await this.uploadMedia(moveRemuxFileArgs, job.id);
           linkedInputUrl = streamStorage.publicUrl.replace(':service_path', 's3').replace(':path', remuxUrlPath);
         }
@@ -623,7 +616,7 @@ export class VideoService {
           );
           this.setTranscoderPriority(0);
           const syncThumbnails = !!job.data.update;
-          const rcloneMoveThumbArgs = this.createRcloneMoveThumbArgs(
+          const rcloneMoveThumbArgs = this.encodingArgs.createRcloneMoveThumbArgs(
             transcodeDir,
             job.data.storage,
             job.data._id,
@@ -791,7 +784,7 @@ export class VideoService {
     const mpdManifestFileName = `${audioBaseName}.mpd`;
     const playlistFileName = `${audioBaseName}_1.m3u8`;
 
-    const audioArgs = this.createAudioEncodingArgs({
+    const audioArgs = this.encodingArgs.createAudioEncodingArgs({
       inputFile: inputFileUrl || inputFile,
       parsedInput,
       audioParams,
@@ -841,7 +834,7 @@ export class VideoService {
       uri: `${streamId}/${preparedAudioFileName}`
     });
 
-    const rcloneMoveArgs = this.createRcloneMoveArgs(
+    const rcloneMoveArgs = this.encodingArgs.createRcloneMoveArgs(
       `${parsedInput.dir}/${preparedAudioFileName}`,
       `${job.data.storage}:${job.data._id}/${streamId}`
     );
@@ -899,7 +892,7 @@ export class VideoService {
           this.setTranscoderPriority(1);
           if (codec === VideoCodec.H264 || codec === VideoCodec.H265 || codec === VideoCodec.AV1) {
             const crfKey = codec === VideoCodec.AV1 ? 'cq' : 'crf';
-            const videoArgs = this.createVideoEncodingArgs({
+            const videoArgs = this.encodingArgs.createVideoEncodingArgs({
               inputFile: inputFileUrl || inputFile,
               parsedInput,
               codec,
@@ -914,7 +907,7 @@ export class VideoService {
             await this.encodeMedia(videoArgs, sourceInfo.duration, job.id);
           } else {
             // Pass 1 params
-            const videoPass1Args = this.createTwoPassesVideoEncodingArgs({
+            const videoPass1Args = this.encodingArgs.createTwoPassesVideoEncodingArgs({
               inputFile: inputFileUrl || inputFile,
               parsedInput,
               codec,
@@ -928,7 +921,7 @@ export class VideoService {
               outputFileName: encodedVideoFileName
             });
             // Pass 2 params
-            const videoPass2Args = this.createTwoPassesVideoEncodingArgs({
+            const videoPass2Args = this.encodingArgs.createTwoPassesVideoEncodingArgs({
               inputFile: inputFileUrl || inputFile,
               parsedInput,
               codec,
@@ -991,7 +984,7 @@ export class VideoService {
           uri: `${streamId}/${preparedVideoFileName}`
         });
 
-        const rcloneMoveArgs = this.createRcloneMoveArgs(
+        const rcloneMoveArgs = this.encodingArgs.createRcloneMoveArgs(
           `${parsedInput.dir}/${preparedVideoFileName}`,
           `${job.data.storage}:${job.data._id}/${streamId}`
         );
@@ -1087,7 +1080,7 @@ export class VideoService {
         this.CanRetryEncoding = true;
         if (codec === VideoCodec.H264 || codec === VideoCodec.H265 || codec === VideoCodec.AV1) {
           const crfKey = codec === VideoCodec.AV1 ? 'cq' : 'crf';
-          const videoArgs = this.createVideoEncodingArgs({
+          const videoArgs = this.encodingArgs.createVideoEncodingArgs({
             inputFile: inputFileUrl || inputFile,
             parsedInput,
             codec,
@@ -1121,7 +1114,7 @@ export class VideoService {
           }
         } else {
           // Pass 1 params
-          const videoPass1Args = this.createTwoPassesVideoEncodingArgs({
+          const videoPass1Args = this.encodingArgs.createTwoPassesVideoEncodingArgs({
             inputFile: inputFileUrl || inputFile,
             parsedInput,
             codec,
@@ -1138,7 +1131,7 @@ export class VideoService {
             outputFileName: segmentFileSubPath
           });
           // Pass 2 params
-          const videoPass2Args = this.createTwoPassesVideoEncodingArgs({
+          const videoPass2Args = this.encodingArgs.createTwoPassesVideoEncodingArgs({
             inputFile: inputFileUrl || inputFile,
             parsedInput,
             codec,
@@ -1180,7 +1173,7 @@ export class VideoService {
     }
 
     // Merge back
-    const concatSegmentArgs = this.createConcatSegmentArgs(concatSegmentFile, parsedInput, outputFileName);
+    const concatSegmentArgs = this.encodingArgs.createConcatSegmentArgs(concatSegmentFile, parsedInput, outputFileName);
     await this.encodeMedia(concatSegmentArgs, sourceInfo.duration, job.id);
     this.setTranscoderPriority(0);
 
@@ -1223,7 +1216,12 @@ export class VideoService {
       this.logger.warning(`Not enough disk space to duplicate file, deleting: ${trimmedFileName} temporary`);
       await fileHelper.deleteFile(inputSourceFile);
     }
-    const mp4boxPackArgs = this.createMP4BoxPackArgs(inputFilePath, parsedInput, tempFileName, playlistName);
+    const mp4boxPackArgs = this.encodingArgs.createMP4BoxPackArgs(
+      inputFilePath,
+      parsedInput,
+      tempFileName,
+      playlistName
+    );
     await this.packageMedia(mp4boxPackArgs, job.id);
     await fileHelper.deleteFile(inputFilePath);
     const tempFilePath = `${parsedInput.dir}/${tempFileName}.mp4`;
@@ -1264,7 +1262,7 @@ export class VideoService {
     const streamId = await createSnowFlakeId();
     this.logger.info(`Generating manifest file: ${manifestFileName}`);
     await manifest.saveFile(manifestFilePath);
-    const rcloneMoveManifestArgs = this.createRcloneMoveArgs(
+    const rcloneMoveManifestArgs = this.encodingArgs.createRcloneMoveArgs(
       manifestFilePath,
       `${job.data.storage}:${job.data._id}/${streamId}`
     );
@@ -1280,341 +1278,6 @@ export class VideoService {
         hdrFormat: sourceInfo?.hdrParams?.hdrFormat
       }
     });
-  }
-
-  private createAudioEncodingArgs(options: CreateAudioEncodingArgsOptions) {
-    const { inputFile, parsedInput, audioParams, codec, channels, downmix, audioIndex, outputFileName } = options;
-    const bitrate =
-      AudioCodec.OPUS === codec
-        ? OPUS_STEREO_BITRATE
-        : AudioCodec.OPUS_SURROUND === codec
-        ? OPUS_SURROUND_BITRATE_PER_CHANNEL * channels
-        : 0;
-    const args: string[] = [
-      '-hide_banner',
-      '-y',
-      '-progress',
-      'pipe:1',
-      '-loglevel',
-      'error',
-      '-i',
-      `"${inputFile}"`,
-      '-vn'
-    ];
-    if (this.UseURLInput) {
-      args.push(...FFMPEG_RECONNECT_ARGS);
-    }
-    if (bitrate > 0) {
-      args.push('-b:a', `${bitrate}K`);
-    }
-    args.push(...audioParams);
-    if (downmix) {
-      if (codec === AudioCodec.AAC) {
-        args.push(
-          '-af',
-          '"lowpass=c=LFE:f=120,pan=stereo|FL=.3FL+.21FC+.3FLC+.21SL+.21BL+.15BC+.21LFE|FR=.3FR+.21FC+.3FRC+.21SR+.21BR+.15BC+.21LFE,volume=1.6"'
-        );
-      } else if (codec === AudioCodec.OPUS) {
-        args.push('-ac', '2');
-        args.push('-mapping_family', '0');
-      }
-    } else if (channels > 2) {
-      const channelValue = channels <= MAX_AUDIO_CHANNELS ? channels.toString() : MAX_AUDIO_CHANNELS.toString();
-      args.push('-ac', channelValue);
-      if (codec === AudioCodec.OPUS_SURROUND) {
-        args.push('-mapping_family', '1');
-      }
-    }
-    args.push(
-      '-map',
-      `0:${audioIndex}`,
-      //'-map_metadata', '-1',
-      '-map_chapters',
-      '-1',
-      '-f',
-      'mp4',
-      `"${parsedInput.dir}/${outputFileName}"`
-    );
-    return args;
-  }
-
-  private createVideoEncodingArgs(options: CreateVideoEncodingArgsOptions) {
-    const {
-      inputFile,
-      parsedInput,
-      codec,
-      quality,
-      videoParams,
-      sourceInfo,
-      crfKey,
-      advancedSettings,
-      encodingSetting,
-      splitFrom,
-      splitDuration,
-      outputFileName
-    } = options;
-    const gopSize = (sourceInfo.fps ? sourceInfo.fps * 2 : 48).toString();
-    const bitDepth = codec === VideoCodec.H264 ? 8 : 10;
-    const videoFilters = this.resolveVideoFilters({
-      quality,
-      hdrTonemap: codec === VideoCodec.H264 && sourceInfo.isHDR,
-      bitDepth
-    });
-    const args: string[] = ['-hide_banner', '-y', '-hwaccel', 'auto', '-progress', 'pipe:1', '-loglevel', 'error'];
-    if (this.UseURLInput) {
-      args.push(...FFMPEG_RECONNECT_ARGS);
-    }
-    splitFrom && args.push('-ss', splitFrom);
-    args.push('-i', `"${inputFile}"`);
-    splitDuration && args.push('-t', splitDuration);
-    args.push(...videoParams, '-g', gopSize, '-keyint_min', gopSize, '-sc_threshold', '0');
-    if (encodingSetting) this.resolveEncodingSettings(args, encodingSetting, sourceInfo, crfKey);
-    if (codec === VideoCodec.H264) this.resolveH264Params(args, advancedSettings, quality, sourceInfo);
-    else if (codec === VideoCodec.AV1) this.resolveSVTAV1Params(args, advancedSettings, sourceInfo);
-    args.push(
-      '-map',
-      '0:v:0',
-      //'-map_metadata', '-1',
-      '-map_chapters',
-      '-1',
-      '-vf',
-      videoFilters,
-      //'-movflags', '+faststart',
-      `"${parsedInput.dir}/${outputFileName}"`
-    );
-    return args;
-  }
-
-  private createTwoPassesVideoEncodingArgs(options: CreateVideoEncodingArgsOptions & { pass: number }) {
-    const {
-      inputFile,
-      parsedInput,
-      codec,
-      quality,
-      videoParams,
-      sourceInfo,
-      crfKey,
-      advancedSettings,
-      encodingSetting,
-      pass,
-      splitFrom,
-      splitDuration,
-      segmentIndex,
-      outputFileName
-    } = options;
-    const gopSize = (sourceInfo.fps ? sourceInfo.fps * 2 : 48).toString();
-    const bitDepth = codec === VideoCodec.H264 ? 8 : 10;
-    const videoFilters = this.resolveVideoFilters({ quality, hdrTonemap: false, bitDepth });
-    // Both passes share an identical prefix; only the stream mapping and the
-    // trailing -pass directive differ. Build the common args once.
-    const args = ['-hide_banner', '-y', '-hwaccel', 'auto', '-progress', 'pipe:1', '-loglevel', 'error'];
-    if (this.UseURLInput) {
-      args.push(...FFMPEG_RECONNECT_ARGS);
-    }
-    splitFrom && args.push('-ss', splitFrom);
-    args.push('-i', `"${inputFile}"`);
-    splitDuration && args.push('-t', splitDuration);
-    args.push(...videoParams, '-g', gopSize, '-keyint_min', gopSize, '-sc_threshold', '0');
-    if (encodingSetting) this.resolveEncodingSettings(args, encodingSetting, sourceInfo, crfKey);
-    if (codec === VideoCodec.H264) this.resolveH264Params(args, advancedSettings, quality, sourceInfo);
-    else if (codec === VideoCodec.AV1) this.resolveSVTAV1Params(args, advancedSettings, sourceInfo);
-
-    // Stream mapping: the final pass (2) also strips chapters before muxing output.
-    args.push('-map', '0:v:0');
-    if (pass === 2) args.push('-map_chapters', '-1');
-    args.push('-vf', videoFilters);
-    //'-movflags', '+faststart'
-
-    // Shared two-pass log file (segmented encodes write under the split folder).
-    const passLogDir = segmentIndex != null ? `${parsedInput.dir}/${SPLIT_SEGMENT_FOLDER}` : parsedInput.dir;
-    args.push('-passlogfile', `"${passLogDir}/${parsedInput.name}_2pass.log"`);
-
-    // Pass-specific tail: pass 1 analyzes to a null sink, pass 2 writes the output.
-    if (pass === 1) {
-      const nullSink = process.platform === 'win32' ? 'NUL' : '/dev/null';
-      args.push('-pass', '1', '-an', '-f', 'null', nullSink);
-    } else {
-      args.push('-pass', '2', `"${parsedInput.dir}/${outputFileName}"`);
-    }
-    return args;
-  }
-
-  private resolveEncodingSettings(
-    args: string[],
-    encodingSetting: IEncodingSetting,
-    sourceInfo: VideoSourceInfo,
-    crfKey: 'crf' | 'cq' = 'crf'
-  ) {
-    let crfValue = null;
-    if (crfKey === 'crf')
-      if (sourceInfo.codec === 'h265') crfValue = encodingSetting.h265Crf;
-      else crfValue = encodingSetting.crf;
-    else if (crfKey === 'cq') crfValue = encodingSetting.cq;
-    crfValue && args.push('-crf', crfValue.toString());
-    // Should double the bitrate when the source codec isn't h264 (could be h265, vp9 or av1)
-    const baseBitrate = sourceInfo.codec === 'h264' ? sourceInfo.bitrate : sourceInfo.bitrate * 2;
-    if (encodingSetting.useLowerRate && baseBitrate > 0 && baseBitrate < encodingSetting.maxrate) {
-      encodingSetting.maxrate && args.push('-maxrate', `${baseBitrate}K`);
-      encodingSetting.bufsize && args.push('-bufsize', `${baseBitrate * 2}K`);
-    } else {
-      encodingSetting.maxrate && args.push('-maxrate', `${encodingSetting.maxrate}K`);
-      encodingSetting.bufsize && args.push('-bufsize', `${encodingSetting.bufsize}K`);
-    }
-  }
-
-  private resolveH264Params(
-    args: string[],
-    advancedSettings: AdvancedVideoSettings,
-    quality: number,
-    sourceInfo: VideoSourceInfo
-  ) {
-    if (advancedSettings.h264Tune) {
-      args.push('-tune', advancedSettings.h264Tune);
-    }
-    if (quality >= 1440) {
-      // Find the best h264 profile level for > 2k resolution
-      const level = ffmpegHelper.findH264ProfileLevel(sourceInfo.width, sourceInfo.height, quality, sourceInfo.fps);
-      if (level !== null) {
-        args.push('-level:v', level);
-      }
-    }
-    if (sourceInfo.sourceH264Params) {
-      const x264Params = mediaInfoHelper.createH264Params(sourceInfo.sourceH264Params, sourceInfo.height === quality);
-      args.push('-x264-params', `"${x264Params}"`);
-    }
-  }
-
-  private resolveSVTAV1Params(args: string[], advancedSettings: AdvancedVideoSettings, sourceInfo: VideoSourceInfo) {
-    const svtAv1Preset = this.configService.get<string>('SVT_AV1_PRESET');
-    const svtAV1PresetParams = {
-      main: [
-        'tune=0',
-        'enable-overlays=1',
-        'film-grain=0',
-        'film-grain-denoise=0',
-        'scd=1',
-        'sharpness=0',
-        'enable-qm=1',
-        'qm-min=0',
-        'enable-variance-boost=1'
-      ],
-      psy: ['tune=0', 'enable-overlays=1', 'film-grain=0', 'film-grain-denoise=0', 'sharpness=0', 'scd=1'],
-      hdr: ['sharpness=0']
-    };
-    const svtAV1Params =
-      svtAv1Preset === 'psy'
-        ? svtAV1PresetParams.psy
-        : svtAv1Preset === 'hdr'
-        ? svtAV1PresetParams.hdr
-        : svtAV1PresetParams.main;
-    if (advancedSettings.h264Tune !== 'animation') svtAV1Params.push('scm=0');
-    if (sourceInfo.hdrParams) {
-      args.push(...sourceInfo.hdrParams.ffmpegParams);
-      svtAV1Params.push(sourceInfo.hdrParams.libsvtav1Params);
-    } else {
-      svtAV1Params.push('luminance-qp-bias=30');
-    }
-    const gopSize = (sourceInfo.fps ? sourceInfo.fps * 2 : 48).toString();
-    svtAV1Params.push(`keyint=${gopSize}`);
-    args.push('-svtav1-params', `"${svtAV1Params.join(':')}"`);
-  }
-
-  private resolveVideoFilters(options: ResolveVideoFiltersOptions) {
-    const videoFilters: string[] = [];
-    if (options.quality) {
-      videoFilters.push(`scale=-2:${options.quality}`);
-    }
-    if (options.hdrTonemap) {
-      videoFilters.push(HDR_TONEMAP_FILTER);
-      if (options.bitDepth === 10) {
-        videoFilters.push('format=yuv420p10le');
-      } else {
-        videoFilters.push('format=yuv420p');
-      }
-    }
-    return videoFilters.join(',');
-  }
-
-  private createConcatSegmentArgs(inputFile: string, parsedInput: path.ParsedPath, outputFile: string) {
-    const args = [
-      '-hide_banner',
-      '-y',
-      '-progress',
-      'pipe:1',
-      '-loglevel',
-      'error',
-      '-f',
-      'concat',
-      '-safe',
-      '0',
-      '-i',
-      `"${inputFile}"`,
-      '-c',
-      'copy',
-      `"${parsedInput.dir}/${outputFile}"`
-    ];
-    return args;
-  }
-
-  private createMP4BoxPackArgs(
-    input: string,
-    parsedInput: path.ParsedPath,
-    tempFileName: string,
-    playlistName: string
-  ) {
-    const segmentInitName = process.platform === 'win32' ? '$Init=$' : '\\$Init=\\$';
-    const args: string[] = [
-      '-dash',
-      '6000',
-      '-profile',
-      'onDemand',
-      '-segment-name',
-      `"${tempFileName}${segmentInitName}"`,
-      '-out',
-      `"${parsedInput.dir}/${playlistName}:dual"`,
-      `"${input}"`
-    ];
-    return args;
-  }
-
-  private createRcloneMoveArgs(source: string, dest: string, include?: string) {
-    const rcloneConfigFile = this.configService.get<string>('RCLONE_CONFIG_FILE');
-    const args: string[] = [
-      '--config',
-      rcloneConfigFile,
-      '--low-level-retries',
-      '5',
-      '-v',
-      '--use-json-log',
-      '--stats',
-      '3s',
-      'move',
-      `"${source}"`,
-      `"${dest}"`
-    ];
-    if (include) {
-      args.push('--include', include);
-    }
-    return args;
-  }
-
-  private createRcloneMoveThumbArgs(transcodeDir: string, remote: string, parentFolder: string, sync: boolean = false) {
-    const targetCommand = sync ? 'sync' : 'move';
-    const rcloneConfigFile = this.configService.get<string>('RCLONE_CONFIG_FILE');
-    const args: string[] = [
-      '--config',
-      rcloneConfigFile,
-      '--low-level-retries',
-      '5',
-      '-v',
-      '--use-json-log',
-      '--stats',
-      '3s',
-      targetCommand,
-      `"${transcodeDir}/${this.thumbnailFolder}"`,
-      `"${remote}:${parentFolder}/${this.thumbnailFolder}"`
-    ];
-    return args;
   }
 
   private encodeMedia(args: string[], videoDuration: number, jobId: string | number) {

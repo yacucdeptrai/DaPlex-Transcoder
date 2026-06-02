@@ -8,6 +8,7 @@ import { VideoService } from './video.service';
 import { TaskQueue, VideoCodec } from '../../enums';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
+import { EncodingArgsService } from './encoding-args.service';
 
 /**
  * Characterization tests for createTwoPassesVideoEncodingArgs (Phase 6.11).
@@ -18,7 +19,7 @@ import { TranscoderApiService } from '../../common/modules/transcoder-api';
  * behavior-preserving.
  */
 describe('VideoService.createTwoPassesVideoEncodingArgs (characterization)', () => {
-  let service: VideoService;
+  let service: EncodingArgsService;
 
   const parsedInput = path.parse('/transcode/42/source.mkv');
 
@@ -62,6 +63,7 @@ describe('VideoService.createTwoPassesVideoEncodingArgs (characterization)', () 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VideoService,
+        EncodingArgsService,
         {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
@@ -73,7 +75,7 @@ describe('VideoService.createTwoPassesVideoEncodingArgs (characterization)', () 
       ]
     }).compile();
 
-    service = module.get<VideoService>(VideoService);
+    service = module.get<EncodingArgsService>(EncodingArgsService);
   });
 
   describe('VP9 (production path)', () => {

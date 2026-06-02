@@ -7,6 +7,7 @@ import { VideoService } from './video.service';
 import { TaskQueue } from '../../enums';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
+import { EncodingArgsService } from './encoding-args.service';
 
 describe('VideoService', () => {
   let service: VideoService;
@@ -15,7 +16,11 @@ describe('VideoService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VideoService,
-        { provide: WINSTON_MODULE_PROVIDER, useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() } },
+        EncodingArgsService,
+        {
+          provide: WINSTON_MODULE_PROVIDER,
+          useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() }
+        },
         { provide: getQueueToken(TaskQueue.VIDEO_TRANSCODE_RESULT), useValue: { add: jest.fn(), remove: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: DaplexApiService, useValue: {} },
