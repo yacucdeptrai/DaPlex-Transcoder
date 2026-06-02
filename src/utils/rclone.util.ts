@@ -150,18 +150,9 @@ export class RcloneHelper {
     });
   }
 
-  async deletePath(
-    configPath: string,
-    rcloneDir: string,
-    remote: string,
-    path: string,
-    logFn: (args: string[]) => void
-  ) {
-    const args: string[] = ['--config', `"${configPath}"`, 'purge', `"${remote}:${path}"`];
-    logFn(args);
-    const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
-    if (!pathExist) return;
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
+  // Shared lifecycle for rclone commands that return nothing: spawn, treat exit
+  // code 0 or 9 as success, otherwise reject with the accumulated stderr text.
+  private runRcloneVoid(rcloneDir: string, args: string[]) {
     return new Promise<void>((resolve, reject) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
       let errorMessage = '';
@@ -177,6 +168,21 @@ export class RcloneHelper {
     });
   }
 
+  async deletePath(
+    configPath: string,
+    rcloneDir: string,
+    remote: string,
+    path: string,
+    logFn: (args: string[]) => void
+  ) {
+    const args: string[] = ['--config', `"${configPath}"`, 'purge', `"${remote}:${path}"`];
+    logFn(args);
+    const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
+    if (!pathExist) return;
+    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
+    return this.runRcloneVoid(rcloneDir, args);
+  }
+
   async deleteFile(
     configPath: string,
     rcloneDir: string,
@@ -189,19 +195,7 @@ export class RcloneHelper {
     const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
     if (!pathExist) return;
     //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
-    return new Promise<void>((resolve, reject) => {
-      const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
-      let errorMessage = '';
-      rclone.stderr.setEncoding('utf8');
-      rclone.stderr.on('data', (data) => {
-        errorMessage += data + '\n';
-      });
-
-      rclone.on('exit', (code) => {
-        if (code === 0 || code === 9) resolve();
-        else reject({ code: code, message: errorMessage });
-      });
-    });
+    return this.runRcloneVoid(rcloneDir, args);
   }
 
   async emptyPath(
@@ -218,38 +212,14 @@ export class RcloneHelper {
     logFn(args);
     const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
     if (!pathExist) return;
-    return new Promise<void>((resolve, reject) => {
-      const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
-      let errorMessage = '';
-      rclone.stderr.setEncoding('utf8');
-      rclone.stderr.on('data', (data) => {
-        errorMessage += data + '\n';
-      });
-
-      rclone.on('exit', (code) => {
-        if (code === 0 || code === 9) resolve();
-        else reject({ code: code, message: errorMessage });
-      });
-    });
+    return this.runRcloneVoid(rcloneDir, args);
   }
 
   deleteRemote(configPath: string, rcloneDir: string, remote: string, logFn: (args: string[]) => void) {
     const args: string[] = ['--config', `"${configPath}"`, 'config', 'delete', remote];
     logFn(args);
     //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
-    return new Promise<void>((resolve, reject) => {
-      const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
-      let errorMessage = '';
-      rclone.stderr.setEncoding('utf8');
-      rclone.stderr.on('data', (data) => {
-        errorMessage += data + '\n';
-      });
-
-      rclone.on('exit', (code) => {
-        if (code === 0 || code === 9) resolve();
-        else reject({ code: code, message: errorMessage });
-      });
-    });
+    return this.runRcloneVoid(rcloneDir, args);
   }
 
   listRemoteJson(
