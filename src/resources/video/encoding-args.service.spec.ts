@@ -12,8 +12,7 @@ import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 
 /**
- * Characterization tests for the ffmpeg/mp4box/rclone argument builders
- * (Phase 7.5 — EncodingArgsService extraction).
+ * Characterization tests for the ffmpeg/mp4box/rclone argument builders.
  *
  * These pin the EXACT arg arrays produced today for every meaningful branch of
  * the 7 public builder methods, so hoisting them out of VideoService into a

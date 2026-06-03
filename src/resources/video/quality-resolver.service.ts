@@ -15,9 +15,9 @@ import { IVideoData } from './interfaces';
  * Resolves which video qualities still need to be encoded for a source, by
  * combining the source height (calculateQuality), already-encoded DB stream
  * records (findAvailableQuality), and any existing remote HLS manifest
- * (findExistingManifest). Extracted verbatim from VideoService (Phase 7.5
- * step 2); the orchestration that ties them together (validateSourceQuality)
- * stays in VideoService because it also touches the result queue + status.
+ * (findExistingManifest). The orchestration that ties them together
+ * (validateSourceQuality) stays in VideoService because it also touches the
+ * result queue + status.
  */
 @Injectable()
 export class QualityResolverService {

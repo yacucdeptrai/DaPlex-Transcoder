@@ -12,7 +12,7 @@ import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 
 /**
- * Characterization tests for createTwoPassesVideoEncodingArgs (Phase 6.11).
+ * Characterization tests for createTwoPassesVideoEncodingArgs.
  *
  * The pass=1 and pass=2 branches share a ~25-line common prefix and differ only
  * in the tail. Before collapsing that duplication we pin the EXACT arg arrays

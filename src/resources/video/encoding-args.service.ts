@@ -23,12 +23,9 @@ import {
 } from './interfaces';
 
 /**
- * Builds the ffmpeg / MP4Box / rclone command-line argument arrays used by the
- * transcode pipeline. Extracted verbatim from VideoService (Phase 7.5) so the
- * orchestrator no longer owns ~330 lines of pure argument construction.
- *
- * Reads the same config keys VideoService does (USE_URL_INPUT, SVT_AV1_PRESET,
- * RCLONE_CONFIG_FILE) in its own constructor — no shared mutable state.
+ * Builds the ffmpeg / MP4Box / rclone command-line argument arrays for the
+ * transcode pipeline. Reads its own config keys (USE_URL_INPUT, SVT_AV1_PRESET,
+ * RCLONE_CONFIG_FILE) — no shared mutable state.
  */
 @Injectable()
 export class EncodingArgsService {

@@ -15,9 +15,8 @@ import { rcloneHelper } from '../../utils';
 import { mediaStorageModel } from '../../models/media-storage.model';
 
 /**
- * Characterization tests for the quality-resolution helpers (Phase 7.5 step 2 —
- * QualityResolverService extraction): calculateQuality, findAvailableQuality,
- * findExistingManifest.
+ * Characterization tests for the quality-resolution helpers: calculateQuality,
+ * findAvailableQuality, findExistingManifest.
  *
  * These pin the EXACT current behavior (concrete return values, not snapshots),
  * recorded GREEN against the methods while they still live on VideoService, then
