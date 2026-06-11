@@ -9,6 +9,7 @@ import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 import { ProcessSpawnerService } from './process-spawner.service';
 import { CodecPresetRegistry } from './codec-preset.registry';
+import { RcloneService } from './rclone.service';
 import {
   BaseVideoConsumer,
   VideoConsumerAV1,
@@ -47,6 +48,7 @@ function getTargetConsumer(consumerCodec: number) {
     QualityResolverService,
     ProcessSpawnerService,
     CodecPresetRegistry,
+    RcloneService,
     {
       provide: BaseVideoConsumer,
       useFactory: (configService: ConfigService, logger: Logger, videoService: VideoService) => {

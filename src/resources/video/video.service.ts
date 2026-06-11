@@ -16,7 +16,6 @@ import { mediaModel } from '../../models/media.model';
 import {
   IVideoData,
   IJobData,
-  IStorage,
   IEncodingSetting,
   MediaQueueResult,
   EncodeAudioOptions,
@@ -28,6 +27,7 @@ import {
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 import { ProcessSpawnerService } from './process-spawner.service';
+import { RcloneService } from './rclone.service';
 import { AudioCodec, StatusCode, VideoCodec, RejectCode, TaskQueue } from '../../enums';
 import {
   ENCODING_QUALITY,
@@ -56,7 +56,6 @@ import {
   hdrMetadataHelper,
   mediaInfoHelper,
   MediaInfoResult,
-  StringCrypto,
   stringHelper,
   StreamManifest,
   rcloneHelper,
@@ -100,7 +99,8 @@ export class VideoService {
     private transcoderApiService: TranscoderApiService,
     private encodingArgs: EncodingArgsService,
     private qualityResolver: QualityResolverService,
-    private spawner: ProcessSpawnerService
+    private spawner: ProcessSpawnerService,
+    private rclone: RcloneService
   ) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
     this.AudioParams = audioParams ? audioParams.split(' ') : AUDIO_PARAMS;
@@ -1304,45 +1304,14 @@ export class VideoService {
     return this.spawner.findUploadedFiles(remote, parentFolder, jobId, exclude);
   }
 
-  private async ensureRcloneConfigExist(configFile: string, storage: string, job: Job<IVideoData>) {
-    const configExists = await fileHelper.findInFile(configFile, `[${storage}]`);
-    if (!configExists) {
-      this.logger.info(`Config for remote "${storage}" not found, generating...`);
-      let externalStorage = await externalStorageModel
-        .findOne({ _id: BigInt(storage) })
-        .lean()
-        .exec();
-      if (!externalStorage) {
-        const statusError = await this.generateStatusError(StatusCode.STORAGE_NOT_FOUND, job);
-        throw new Error(statusError.errorCode);
-      }
-      externalStorage = await this.decryptToken(externalStorage);
-      const newConfig = rcloneHelper.createRcloneConfig(externalStorage);
-      await fileHelper.appendToFile(configFile, newConfig);
-      this.logger.info(`Generated config for remote "${storage}"`);
-    }
+  private ensureRcloneConfigExist(configFile: string, storage: string, job: Job<IVideoData>) {
+    return this.rclone.ensureRcloneConfigExist(configFile, storage, job, (j) =>
+      this.generateStatusError(StatusCode.STORAGE_NOT_FOUND, j)
+    );
   }
 
-  private async getLinkedSourceUrl(job: Job<IVideoData>) {
-    let externalStorage;
-    if (job.data.linkedStorage)
-      externalStorage = await externalStorageModel
-        .findOne({ _id: BigInt(job.data.linkedStorage) }, { publicUrl: 1, folderId: 1 })
-        .lean()
-        .exec();
-    else
-      externalStorage = await externalStorageModel
-        .findOne({ _id: BigInt(job.data.storage) }, { publicUrl: 1, folderId: 1 })
-        .lean()
-        .exec();
-    if (!externalStorage) {
-      const statusError = await this.generateStatusError(StatusCode.STORAGE_NOT_FOUND, job);
-      throw new Error(statusError.errorCode);
-    }
-    if (!externalStorage.publicUrl) return null;
-    const sourcePathItems = [externalStorage.folderId || '', job.data.path, job.data.filename];
-    const sourcePath = path.posix.join(...sourcePathItems.map((value) => encodeURIComponent(value)));
-    return externalStorage.publicUrl.replace(':service_path', 's3').replace(':path', sourcePath);
+  private getLinkedSourceUrl(job: Job<IVideoData>) {
+    return this.rclone.getLinkedSourceUrl(job, (j) => this.generateStatusError(StatusCode.STORAGE_NOT_FOUND, j));
   }
 
   private async validateSourceQuality(options: ValidateSourceQualityOptions): Promise<number[] | null> {
@@ -1415,12 +1384,6 @@ export class VideoService {
       );
     }
     return availableQualityList;
-  }
-
-  private async decryptToken(storage: IStorage) {
-    const stringCrypto = new StringCrypto(this.configService.get<string>('CRYPTO_SECRET_KEY'));
-    storage.clientSecret = await stringCrypto.decrypt(storage.clientSecret);
-    return storage;
   }
 
   private async generateStatusError(
