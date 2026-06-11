@@ -13,6 +13,7 @@ import {
   THUMBNAIL_FOLDER
 } from '../../config';
 import { ffmpegHelper, mediaInfoHelper } from '../../utils';
+import { CodecPresetRegistry } from './codec-preset.registry';
 import {
   AdvancedVideoSettings,
   CreateAudioEncodingArgsOptions,
@@ -32,7 +33,7 @@ export class EncodingArgsService {
   private UseURLInput: boolean;
   private thumbnailFolder: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService: ConfigService, private codecPresets: CodecPresetRegistry) {
     this.UseURLInput = this.configService.get<string>('USE_URL_INPUT') === 'true';
     this.thumbnailFolder = THUMBNAIL_FOLDER;
   }
@@ -241,27 +242,7 @@ export class EncodingArgsService {
 
   private resolveSVTAV1Params(args: string[], advancedSettings: AdvancedVideoSettings, sourceInfo: VideoSourceInfo) {
     const svtAv1Preset = this.configService.get<string>('SVT_AV1_PRESET');
-    const svtAV1PresetParams = {
-      main: [
-        'tune=0',
-        'enable-overlays=1',
-        'film-grain=0',
-        'film-grain-denoise=0',
-        'scd=1',
-        'sharpness=0',
-        'enable-qm=1',
-        'qm-min=0',
-        'enable-variance-boost=1'
-      ],
-      psy: ['tune=0', 'enable-overlays=1', 'film-grain=0', 'film-grain-denoise=0', 'sharpness=0', 'scd=1'],
-      hdr: ['sharpness=0']
-    };
-    const svtAV1Params =
-      svtAv1Preset === 'psy'
-        ? svtAV1PresetParams.psy
-        : svtAv1Preset === 'hdr'
-        ? svtAV1PresetParams.hdr
-        : svtAV1PresetParams.main;
+    const svtAV1Params = this.codecPresets.getSvtAv1BaseParams(svtAv1Preset);
     if (advancedSettings.h264Tune !== 'animation') svtAV1Params.push('scm=0');
     if (sourceInfo.hdrParams) {
       args.push(...sourceInfo.hdrParams.ffmpegParams);
