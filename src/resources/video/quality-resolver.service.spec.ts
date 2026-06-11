@@ -8,6 +8,7 @@ import * as path from 'path';
 import { VideoService } from './video.service';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
+import { ProcessSpawnerService } from './process-spawner.service';
 import { TaskQueue, VideoCodec } from '../../enums';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
@@ -39,6 +40,7 @@ describe('QualityResolverService (characterization)', () => {
         VideoService,
         EncodingArgsService,
         QualityResolverService,
+        ProcessSpawnerService,
         {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }

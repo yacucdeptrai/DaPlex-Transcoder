@@ -94,6 +94,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "snapshotSerializers": [
+      "<rootDir>/testing/platform-arg-serializer.ts"
+    ]
   }
 }

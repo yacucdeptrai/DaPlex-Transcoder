@@ -10,6 +10,7 @@ import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
+import { ProcessSpawnerService } from './process-spawner.service';
 
 /**
  * Characterization tests for the ffmpeg/mp4box/rclone argument builders.
@@ -39,6 +40,7 @@ describe('EncodingArgsService (characterization)', () => {
         VideoService,
         EncodingArgsService,
         QualityResolverService,
+        ProcessSpawnerService,
         {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
