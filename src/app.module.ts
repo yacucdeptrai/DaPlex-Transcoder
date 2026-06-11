@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
 import { utilities as nestWinstonModuleUtilities, WinstonModule } from 'nest-winston';
@@ -32,7 +33,16 @@ import { TranscoderApiModule } from './common/modules/transcoder-api/transcoder-
           }
         };
       },
-      inject: [ConfigService],
+      inject: [ConfigService]
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('DATABASE_URL'),
+        family: 4,
+        useBigInt64: true
+      }),
+      inject: [ConfigService]
     }),
     WinstonModule.forRoot({
       levels: { emerg: 0, alert: 1, crit: 2, error: 3, warning: 4, notice: 5, info: 6, debug: 7 },
@@ -45,10 +55,7 @@ import { TranscoderApiModule } from './common/modules/transcoder-api/transcoder-
           )
         }),
         new winston.transports.DailyRotateFile({
-          format: winston.format.combine(
-            winston.format.timestamp(),
-            winston.format.json()
-          ),
+          format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
           filename: 'info_%DATE%.log',
           dirname: 'logs',
           datePattern: 'YYYY-MM-DD',
@@ -64,6 +71,6 @@ import { TranscoderApiModule } from './common/modules/transcoder-api/transcoder-
     TranscoderApiModule
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService]
 })
-export class AppModule { }
+export class AppModule {}

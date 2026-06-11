@@ -1,12 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 import { Job } from 'bullmq';
-import mongoose from 'mongoose';
+import { Model } from 'mongoose';
 import path from 'path';
 
-import { mediaStorageModel } from '../../models/media-storage.model';
+import { IMediaStorage } from '../../models/media-storage.model';
 import { rcloneHelper } from '../../utils';
 import { HlsManifest } from '../../common/interfaces';
 import { IVideoData } from './interfaces';
@@ -21,7 +22,11 @@ import { IVideoData } from './interfaces';
  */
 @Injectable()
 export class QualityResolverService {
-  constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger, private configService: ConfigService) {}
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    private configService: ConfigService,
+    @InjectModel('mediastorage') private mediaStorageModel: Model<IMediaStorage>
+  ) {}
 
   async findAvailableQuality(
     uploadedFiles: string[],
@@ -40,12 +45,10 @@ export class QualityResolverService {
       if (isNaN(<any>stringId)) continue;
       fileIds.push(BigInt(stringId));
     }
-    await mongoose.connect(this.configService.get<string>('DATABASE_URL'), { family: 4, useBigInt64: true });
-    const sourceFileMeta = await mediaStorageModel
+    const sourceFileMeta = await this.mediaStorageModel
       .findOne({ _id: BigInt(job.data._id) })
       .lean()
       .exec();
-    await mongoose.disconnect();
     const qualityList = sourceFileMeta.streams
       .filter((file) => file.codec === codec && fileIds.includes(file._id))
       .map((file) => file.quality);

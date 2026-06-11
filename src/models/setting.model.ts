@@ -1,6 +1,6 @@
-import { Schema, model } from 'mongoose';
+import { Schema } from 'mongoose';
 
-interface ISetting {
+export interface ISetting {
   _id: bigint;
   defaultVideoCodecs: number;
   audioParams: string;
@@ -16,7 +16,7 @@ interface ISetting {
   videoEncodingSettings: IEncodingSetting[];
 }
 
-interface IEncodingSetting {
+export interface IEncodingSetting {
   quality: number;
   crf: number;
   h265Crf: number;
@@ -35,7 +35,7 @@ const encodingSettingSchema = new Schema<IEncodingSetting>({
   useLowerRate: { type: Boolean }
 });
 
-const settingSchema = new Schema<ISetting>({
+export const settingSchema = new Schema<ISetting>({
   _id: { type: Schema.Types.Mixed, required: true },
   defaultVideoCodecs: { type: Number },
   audioParams: { type: String },
@@ -50,5 +50,3 @@ const settingSchema = new Schema<ISetting>({
   videoNextGenQualityList: { type: [Number] },
   videoEncodingSettings: { type: [encodingSettingSchema] }
 });
-
-export const settingModel = model<ISetting>('setting', settingSchema);

@@ -1,6 +1,6 @@
-import { Schema, model } from 'mongoose';
+import { Schema } from 'mongoose';
 
-interface IExternalStorage {
+export interface IExternalStorage {
   _id: bigint;
   name: string;
   kind: number;
@@ -18,7 +18,7 @@ interface IExternalStorage {
   files: bigint[];
 }
 
-const externalStorageSchema = new Schema<IExternalStorage>({
+export const externalStorageSchema = new Schema<IExternalStorage>({
   _id: { type: Schema.Types.Mixed, required: true },
   name: { type: String, required: true, unique: true },
   kind: { type: Number, required: true },
@@ -35,5 +35,3 @@ const externalStorageSchema = new Schema<IExternalStorage>({
   used: { type: Number, default: 0 },
   files: { type: [Schema.Types.Mixed] }
 });
-
-export const externalStorageModel = model<IExternalStorage>('externalstorage', externalStorageSchema);

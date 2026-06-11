@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
+import { settingSchema } from '../../models/setting.model';
+import { mediaSchema } from '../../models/media.model';
+import { externalStorageSchema } from '../../models/external-storage.model';
+import { mediaStorageSchema } from '../../models/media-storage.model';
 import { VideoService } from './video.service';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
@@ -39,6 +44,12 @@ function getTargetConsumer(consumerCodec: number) {
         attempts: 3
       }
     }),
+    MongooseModule.forFeature([
+      { name: 'setting', schema: settingSchema },
+      { name: 'media', schema: mediaSchema },
+      { name: 'externalstorage', schema: externalStorageSchema },
+      { name: 'mediastorage', schema: mediaStorageSchema }
+    ]),
     DaplexApiModule,
     TranscoderApiModule
   ],

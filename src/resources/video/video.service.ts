@@ -1,18 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
 import { Cron } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue, UnrecoverableError } from 'bullmq';
-import mongoose from 'mongoose';
+import { Model } from 'mongoose';
 import path from 'path';
 import FFprobe from 'ffprobe-client';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
-import { externalStorageModel } from '../../models/external-storage.model';
-import { mediaStorageModel } from '../../models/media-storage.model';
-import { settingModel } from '../../models/setting.model';
-import { mediaModel } from '../../models/media.model';
+import { IExternalStorage } from '../../models/external-storage.model';
+import { IMediaStorage } from '../../models/media-storage.model';
+import { ISetting } from '../../models/setting.model';
+import { IMedia } from '../../models/media.model';
 import {
   IVideoData,
   IJobData,
@@ -100,7 +101,11 @@ export class VideoService {
     private encodingArgs: EncodingArgsService,
     private qualityResolver: QualityResolverService,
     private spawner: ProcessSpawnerService,
-    private rclone: RcloneService
+    private rclone: RcloneService,
+    @InjectModel('setting') private settingModel: Model<ISetting>,
+    @InjectModel('media') private mediaModel: Model<IMedia>,
+    @InjectModel('externalstorage') private externalStorageModel: Model<IExternalStorage>,
+    @InjectModel('mediastorage') private mediaStorageModel: Model<IMediaStorage>
   ) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
     this.AudioParams = audioParams ? audioParams.split(' ') : AUDIO_PARAMS;
@@ -144,14 +149,12 @@ export class VideoService {
       return {};
     }
 
-    // Connect to MongoDB
-    await mongoose.connect(this.configService.get<string>('DATABASE_URL'), { family: 4, useBigInt64: true });
-    const appSettings = await settingModel.findOne({}).lean().exec();
-    const mediaInfo = await mediaModel
+    const appSettings = await this.settingModel.findOne({}).lean().exec();
+    const mediaInfo = await this.mediaModel
       .findOne({ _id: BigInt(job.data.media) }, { _id: 1, originalLang: 1 })
       .lean()
       .exec();
-    const streamStorage = await externalStorageModel
+    const streamStorage = await this.externalStorageModel
       .findOne({ _id: BigInt(job.data.storage) }, { _id: 1, publicUrl: 1 })
       .lean()
       .exec();
@@ -211,7 +214,7 @@ export class VideoService {
     const forcedQualityList = job.data.advancedOptions?.forceVideoQuality || [];
     // Find and validate source quality if the quality is available on db
     {
-      const sourceInfo = await mediaStorageModel
+      const sourceInfo = await this.mediaStorageModel
         .findOne({ _id: BigInt(job.data._id) }, { _id: 1, name: 1, quality: 1 })
         .lean()
         .exec();
@@ -233,9 +236,6 @@ export class VideoService {
         }
       }
     }
-
-    // Disconnect MongoDB
-    await mongoose.disconnect();
 
     await fileHelper.createDir(transcodeDir);
     // Still need to download for audio encoding

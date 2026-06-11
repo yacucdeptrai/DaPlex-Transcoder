@@ -1,8 +1,8 @@
-import { Schema, model } from 'mongoose';
+import { Schema } from 'mongoose';
 
 import { IMediaStorageStream, mediaStorageStreamSchema } from './media-storage-stream.model';
 
-interface IMediaStorage {
+export interface IMediaStorage {
   _id: bigint;
   type: number;
   name: string;
@@ -16,7 +16,7 @@ interface IMediaStorage {
   storage: bigint;
 }
 
-const mediaStorageSchema = new Schema<IMediaStorage>({
+export const mediaStorageSchema = new Schema<IMediaStorage>({
   _id: { type: Schema.Types.Mixed, required: true },
   type: { type: Number, required: true },
   name: { type: String, required: true },
@@ -29,5 +29,3 @@ const mediaStorageSchema = new Schema<IMediaStorage>({
   episode: { type: Schema.Types.Mixed },
   storage: { type: Schema.Types.Mixed, required: true }
 });
-
-export const mediaStorageModel = model<IMediaStorage>('mediastorage', mediaStorageSchema);

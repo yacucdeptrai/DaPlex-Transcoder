@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectModel } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 import { Job } from 'bullmq';
+import { Model } from 'mongoose';
 import path from 'path';
 
-import { externalStorageModel } from '../../models/external-storage.model';
+import { IExternalStorage } from '../../models/external-storage.model';
 import { fileHelper, rcloneHelper, StringCrypto } from '../../utils';
 import { IStorage, IVideoData } from './interfaces';
 
@@ -23,7 +25,11 @@ type StorageNotFoundHandler = (job: Job<IVideoData>) => Promise<{ errorCode: str
  */
 @Injectable()
 export class RcloneService {
-  constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger, private configService: ConfigService) {}
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    private configService: ConfigService,
+    @InjectModel('externalstorage') private externalStorageModel: Model<IExternalStorage>
+  ) {}
 
   async ensureRcloneConfigExist(
     configFile: string,
@@ -34,7 +40,7 @@ export class RcloneService {
     const configExists = await fileHelper.findInFile(configFile, `[${storage}]`);
     if (!configExists) {
       this.logger.info(`Config for remote "${storage}" not found, generating...`);
-      let externalStorage = await externalStorageModel
+      let externalStorage = await this.externalStorageModel
         .findOne({ _id: BigInt(storage) })
         .lean()
         .exec();
@@ -52,12 +58,12 @@ export class RcloneService {
   async getLinkedSourceUrl(job: Job<IVideoData>, onStorageNotFound: StorageNotFoundHandler) {
     let externalStorage;
     if (job.data.linkedStorage)
-      externalStorage = await externalStorageModel
+      externalStorage = await this.externalStorageModel
         .findOne({ _id: BigInt(job.data.linkedStorage) }, { publicUrl: 1, folderId: 1 })
         .lean()
         .exec();
     else
-      externalStorage = await externalStorageModel
+      externalStorage = await this.externalStorageModel
         .findOne({ _id: BigInt(job.data.storage) }, { publicUrl: 1, folderId: 1 })
         .lean()
         .exec();
