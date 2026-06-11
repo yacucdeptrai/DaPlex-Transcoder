@@ -89,16 +89,21 @@ describe('QualityResolverService (characterization)', () => {
     const parsedInput = path.parse('/transcode/source.mkv'); // name = 'source'
     const job = { data: { _id: '999' } } as any;
 
+    // Returns the findOne spy so the query shape can be asserted. The filter
+    // ({ _id: BigInt(job.data._id) }) with NO projection is the migration-invariant
+    // contract: it must survive the singleton -> @InjectModel switch byte-identically.
+    // connect/disconnect are stubbed only so the current per-job lifecycle doesn't
+    // hit a real DB; their call-shape is pinned separately in the REPOINT block.
     const mockStreams = (streams: Array<{ codec: number; _id: bigint; quality: number }>) => {
       jest.spyOn(mongoose, 'connect').mockResolvedValue(undefined as any);
       jest.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as any);
-      jest
+      return jest
         .spyOn(mediaStorageModel, 'findOne')
         .mockReturnValue({ lean: () => ({ exec: () => Promise.resolve({ streams }) }) } as any);
     };
 
     it('returns qualities whose encoded streams are not yet present', async () => {
-      mockStreams([
+      const findOneSpy = mockStreams([
         { codec: VideoCodec.H264, _id: BigInt(123), quality: 1080 },
         { codec: VideoCodec.H264, _id: BigInt(124), quality: 720 }
       ]);
@@ -112,6 +117,11 @@ describe('QualityResolverService (characterization)', () => {
       );
       // 123/1080 & 124/720 already encoded for H264; abc skipped (NaN id). 480 has no encoded stream.
       expect(result).toEqual([480]);
+      // Query-shape contract (must survive @InjectModel migration): the source
+      // doc is fetched by BigInt id with NO projection (single-arg findOne).
+      expect(findOneSpy).toHaveBeenCalledTimes(1);
+      expect(findOneSpy).toHaveBeenCalledWith({ _id: BigInt('999') });
+      expect(findOneSpy.mock.calls[0]).toHaveLength(1);
     });
 
     it('treats replaceStreams ids as not-yet-encoded', async () => {
@@ -142,6 +152,30 @@ describe('QualityResolverService (characterization)', () => {
         job
       );
       expect(result).toEqual([1080, 720]);
+    });
+
+    // -------------------------------------------------------------------------
+    // REPOINT-AFTER-MIGRATION: per-job connection lifecycle.
+    //
+    // These assertions pin the CURRENT per-job connect/disconnect that brackets
+    // the findOne. The persistent-Mongoose migration REMOVES this lifecycle (the
+    // connection moves to MongooseModule.forRootAsync), so the surgeon's repoint
+    // is: DELETE this block and add the post-migration invariant (connect/disconnect
+    // are NEVER called by the service). Do NOT delete the query-shape assertions
+    // above — those survive the migration unchanged. See 02_test_baseline.md.
+    // -------------------------------------------------------------------------
+    it('[repoint] opens a per-job connection with family:4 + useBigInt64 and disconnects after the query', async () => {
+      const connectSpy = jest.spyOn(mongoose, 'connect').mockResolvedValue(undefined as any);
+      const disconnectSpy = jest.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as any);
+      jest
+        .spyOn(mediaStorageModel, 'findOne')
+        .mockReturnValue({ lean: () => ({ exec: () => Promise.resolve({ streams: [] }) }) } as any);
+
+      await target.findAvailableQuality(['123/source_1080.mp4'], [1080], parsedInput, VideoCodec.H264, [], job);
+
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(connectSpy).toHaveBeenCalledWith('mongodb://test/db', { family: 4, useBigInt64: true });
+      expect(disconnectSpy).toHaveBeenCalledTimes(1);
     });
   });
 
