@@ -13,6 +13,7 @@ import { AppService } from './app.service';
 import { VideoModule } from './resources/video/video.module';
 import { VideoCancelModule } from './resources/video-cancel/video-cancel.module';
 import { TranscoderApiModule } from './common/modules/transcoder-api/transcoder-api.module';
+import { ensureSrvResolvable, parseSrvHost } from './utils/mongo-srv.util';
 
 @Module({
   imports: [
@@ -37,11 +38,19 @@ import { TranscoderApiModule } from './common/modules/transcoder-api/transcoder-
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('DATABASE_URL'),
-        family: 4,
-        useBigInt64: true
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const uri = configService.get<string>('DATABASE_URL');
+        // A loopback-pinned resolver (Windows ICS) refuses SRV queries; fix DNS before the driver connects.
+        if (uri?.startsWith('mongodb+srv://')) {
+          const srvHost = parseSrvHost(uri);
+          if (srvHost) await ensureSrvResolvable(srvHost);
+        }
+        return {
+          uri,
+          family: 4,
+          useBigInt64: true
+        };
+      },
       inject: [ConfigService]
     }),
     WinstonModule.forRoot({
