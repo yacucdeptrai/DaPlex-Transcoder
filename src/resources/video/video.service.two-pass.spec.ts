@@ -11,6 +11,7 @@ import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 import { ProcessSpawnerService } from './process-spawner.service';
+import { CodecPresetRegistry } from './codec-preset.registry';
 
 /**
  * Characterization tests for createTwoPassesVideoEncodingArgs.
@@ -68,6 +69,7 @@ describe('VideoService.createTwoPassesVideoEncodingArgs (characterization)', () 
         EncodingArgsService,
         QualityResolverService,
         ProcessSpawnerService,
+        CodecPresetRegistry,
         {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }

@@ -10,6 +10,7 @@ import { VideoService } from './video.service';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 import { ProcessSpawnerService } from './process-spawner.service';
+import { CodecPresetRegistry } from './codec-preset.registry';
 import { TaskQueue, VideoCodec } from '../../enums';
 
 // In production WinstonModule.forRoot and ConfigModule.forRoot({isGlobal:true})
@@ -72,6 +73,7 @@ describe('VideoModule DI graph (smoke)', () => {
     expect(moduleRef.get(EncodingArgsService)).toBeInstanceOf(EncodingArgsService);
     expect(moduleRef.get(QualityResolverService)).toBeInstanceOf(QualityResolverService);
     expect(moduleRef.get(ProcessSpawnerService)).toBeInstanceOf(ProcessSpawnerService);
+    expect(moduleRef.get(CodecPresetRegistry)).toBeInstanceOf(CodecPresetRegistry);
   });
 
   it('builds the BaseVideoConsumer factory from VIDEO_CODEC without throwing', () => {
