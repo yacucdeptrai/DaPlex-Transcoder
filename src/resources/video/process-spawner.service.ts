@@ -33,10 +33,7 @@ export interface SpawnStateAccessors {
 export class ProcessSpawnerService {
   private state: SpawnStateAccessors;
 
-  constructor(
-    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
-    private configService: ConfigService
-  ) {}
+  constructor(@Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger, private configService: ConfigService) {}
 
   setStateAccessors(state: SpawnStateAccessors) {
     this.state = state;
