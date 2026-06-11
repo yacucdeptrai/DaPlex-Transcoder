@@ -7,6 +7,7 @@ import { Logger } from 'winston';
 import { VideoService } from './video.service';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
+import { ProcessSpawnerService } from './process-spawner.service';
 import {
   BaseVideoConsumer,
   VideoConsumerAV1,
@@ -43,6 +44,7 @@ function getTargetConsumer(consumerCodec: number) {
     VideoService,
     EncodingArgsService,
     QualityResolverService,
+    ProcessSpawnerService,
     {
       provide: BaseVideoConsumer,
       useFactory: (configService: ConfigService, logger: Logger, videoService: VideoService) => {

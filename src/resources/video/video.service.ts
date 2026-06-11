@@ -4,8 +4,6 @@ import { Cron } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue, UnrecoverableError } from 'bullmq';
 import mongoose from 'mongoose';
-import { stdout } from 'process';
-import child_process from 'child_process';
 import path from 'path';
 import FFprobe from 'ffprobe-client';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
@@ -29,6 +27,7 @@ import {
 } from './interfaces';
 import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
+import { ProcessSpawnerService } from './process-spawner.service';
 import { AudioCodec, StatusCode, VideoCodec, RejectCode, TaskQueue } from '../../enums';
 import {
   ENCODING_QUALITY,
@@ -47,13 +46,11 @@ import {
   EXPECTED_AUDIO_STREAMS,
   SURROUND_CHANNEL_COUNTS
 } from '../../config';
-import { RcloneFile } from '../../common/interfaces';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import {
   createSnowFlakeId,
   diskSpaceUtil,
-  ffmpegHelper,
   fileHelper,
   generateSprites,
   hdrMetadataHelper,
@@ -63,11 +60,8 @@ import {
   stringHelper,
   StreamManifest,
   rcloneHelper,
-  videoSourceHelper,
-  isEqualShallow,
-  createCancelChecker
+  videoSourceHelper
 } from '../../utils';
-import { Progress } from '../../common/entities';
 
 type JobNameType =
   | 'update-source'
@@ -96,6 +90,7 @@ export class VideoService {
   private CanRetryEncoding: boolean;
   private TranscoderPriority: number;
   private thumbnailFolder: string;
+  private spawner: ProcessSpawnerService;
 
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
@@ -132,6 +127,14 @@ export class VideoService {
     this.CanRetryEncoding = false;
     this.TranscoderPriority = 0;
     this.thumbnailFolder = THUMBNAIL_FOLDER;
+    this.spawner = new ProcessSpawnerService(this.logger, this.configService);
+    this.spawner.setStateAccessors({
+      getCanceledJobIds: () => this.CanceledJobIds,
+      setCanceledJobIds: (ids) => (this.CanceledJobIds = ids),
+      getRetryEncoding: () => this.RetryEncoding,
+      setRetryEncoding: (value) => (this.RetryEncoding = value),
+      getCanRetryEncoding: () => this.CanRetryEncoding
+    });
   }
 
   async transcode(job: Job<IVideoData>, codec: VideoCodec = VideoCodec.H264) {
@@ -1287,221 +1290,19 @@ export class VideoService {
   }
 
   private encodeMedia(args: string[], videoDuration: number, jobId: string | number) {
-    return new Promise<void>((resolve, reject) => {
-      let isCancelled = false;
-      let isRetryEncoding = false;
-      let isProgressTimeout = false;
-      let lastProgress: Progress | null = null;
-
-      this.logger.info('ffmpeg ' + args.join(' '));
-      const ffmpeg = child_process.spawn(`"${this.configService.get<string>('FFMPEG_DIR')}/ffmpeg"`, args, {
-        shell: true
-      });
-
-      ffmpeg.stdout.setEncoding('utf8');
-      ffmpeg.stdout.on('data', async (data: string) => {
-        const progress = ffmpegHelper.parseProgress(data);
-        if (!isEqualShallow(lastProgress, progress)) isProgressTimeout = false;
-        lastProgress = { ...progress };
-        const percent = ffmpegHelper.progressPercent(progress.outTimeMs, videoDuration * 1000000);
-        stdout.write(`${ffmpegHelper.getProgressMessage(progress, percent)}\r`);
-      });
-
-      ffmpeg.stderr.setEncoding('utf8');
-      ffmpeg.stderr.on('data', (data) => {
-        stdout.write(data);
-      });
-
-      const cancelledJobChecker = this.createCancelJobChecker(jobId, () => {
-        isCancelled = true;
-        ffmpeg.stdin.write('q');
-        ffmpeg.stdin.end();
-      });
-
-      const retryEncodingChecker = this.createRetryEncodingChecker(() => {
-        isRetryEncoding = true;
-        ffmpeg.kill('SIGINT');
-        ffmpeg.kill('SIGTERM');
-      });
-
-      const progressTimeoutChecker = this.createTimeoutChecker(() => {
-        if (isProgressTimeout) {
-          ffmpeg.kill('SIGINT');
-          ffmpeg.kill('SIGTERM');
-          return;
-        }
-        isProgressTimeout = true;
-      });
-
-      ffmpeg.on('exit', (code: number) => {
-        stdout.write('\n');
-        clearInterval(cancelledJobChecker);
-        clearInterval(retryEncodingChecker);
-        clearInterval(progressTimeoutChecker);
-        if (isCancelled) {
-          reject(RejectCode.JOB_CANCEL);
-        } else if (isRetryEncoding) {
-          reject(RejectCode.RETRY_ENCODING);
-        } else if (isProgressTimeout) {
-          reject(RejectCode.ENCODING_TIMEOUT);
-        } else if (code !== 0) {
-          reject({ code, message: `FFmpeg exited with status code: ${code}` });
-        } else {
-          resolve();
-        }
-      });
-    });
+    return this.spawner.encodeMedia(args, videoDuration, jobId);
   }
 
   private packageMedia(args: string[], jobId: string | number) {
-    return new Promise<void>((resolve, reject) => {
-      let isCancelled = false;
-
-      this.logger.info('MP4Box ' + args.join(' '));
-      const mp4box = child_process.spawn(`"${this.configService.get<string>('MP4BOX_DIR')}/MP4Box"`, args, {
-        shell: true
-      });
-
-      mp4box.stderr.setEncoding('utf8');
-      mp4box.stderr.on('data', (data) => {
-        stdout.write(data);
-      });
-
-      const cancelledJobChecker = this.createCancelJobChecker(jobId, () => {
-        isCancelled = true;
-        mp4box.kill('SIGINT'); // Stop key
-      });
-
-      mp4box.on('exit', (code: number) => {
-        stdout.write('\n');
-        clearInterval(cancelledJobChecker);
-        if (isCancelled) {
-          reject(RejectCode.JOB_CANCEL);
-        } else if (code !== 0) {
-          reject(`MP4Box exited with status code: ${code}`);
-        } else {
-          resolve();
-        }
-      });
-    });
+    return this.spawner.packageMedia(args, jobId);
   }
 
   private uploadMedia(args: string[], jobId: string | number) {
-    return new Promise<void>((resolve, reject) => {
-      let isCancelled = false;
-
-      this.logger.info('rclone ' + args.join(' '));
-      const rclone = child_process.spawn(`"${this.configService.get<string>('RCLONE_DIR')}/rclone"`, args, {
-        shell: true
-      });
-
-      rclone.stderr.setEncoding('utf8');
-      rclone.stderr.on('data', (data) => {
-        const progress = rcloneHelper.parseRcloneUploadProgress(data);
-        if (progress) stdout.write(`${progress.msg}\r`);
-      });
-
-      const cancelledJobChecker = this.createCancelJobChecker(jobId, () => {
-        isCancelled = true;
-        rclone.kill('SIGINT'); // Stop key
-      });
-
-      rclone.on('exit', (code: number) => {
-        stdout.write('\n');
-        clearInterval(cancelledJobChecker);
-        if (isCancelled) {
-          reject(RejectCode.JOB_CANCEL);
-        } else if (code !== 0) {
-          reject(`Rclone exited with status code: ${code}`);
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
-
-  private createCancelJobChecker(jobId: string | number, exec: () => void, ms: number = 5000) {
-    return createCancelChecker(
-      () => this.CanceledJobIds,
-      (ids) => (this.CanceledJobIds = ids),
-      jobId,
-      exec,
-      ms
-    );
-  }
-
-  private createRetryEncodingChecker(exec: () => void, ms: number = 5000) {
-    if (!this.CanRetryEncoding) return null;
-    return setInterval(() => {
-      if (!this.RetryEncoding) return;
-      this.RetryEncoding = false;
-      // Exec callback
-      exec();
-    }, ms);
-  }
-
-  private createTimeoutChecker(exec: () => void, ms: number = 600_000) {
-    return setInterval(() => {
-      exec();
-    }, ms);
+    return this.spawner.uploadMedia(args, jobId);
   }
 
   private findUploadedFiles(remote: string, parentFolder: string, jobId: string | number, exclude?: string) {
-    const rcloneConfigFile = this.configService.get<string>('RCLONE_CONFIG_FILE');
-    const args: string[] = [
-      '--config',
-      rcloneConfigFile,
-      'lsjson',
-      `${remote}:${parentFolder}`,
-      '--recursive',
-      '--files-only'
-    ];
-    if (exclude) {
-      args.push('--exclude', exclude);
-    }
-    return new Promise<RcloneFile[]>((resolve, reject) => {
-      let isCancelled = false;
-      this.logger.info('rclone ' + args.join(' '));
-      const rclone = child_process.spawn(`"${this.configService.get<string>('RCLONE_DIR')}/rclone"`, args, {
-        shell: true
-      });
-
-      let listJson = '';
-
-      rclone.stdout.setEncoding('utf8');
-      rclone.stdout.on('data', (data) => {
-        listJson += data;
-      });
-
-      rclone.stderr.setEncoding('utf8');
-      rclone.stderr.on('data', (data) => {
-        stdout.write(data);
-      });
-
-      const cancelledJobChecker = this.createCancelJobChecker(
-        jobId,
-        () => {
-          isCancelled = true;
-          rclone.kill('SIGINT');
-        },
-        500
-      );
-
-      rclone.on('exit', (code: number) => {
-        clearInterval(cancelledJobChecker);
-        if (isCancelled) {
-          reject(RejectCode.JOB_CANCEL);
-        } else if (code === 3) {
-          // Return an empty array if directory not found
-          resolve([]);
-        } else if (code !== 0) {
-          reject(`Error listing files, rclone exited with status code: ${code}`);
-        } else {
-          const fileData = JSON.parse(listJson);
-          resolve(fileData);
-        }
-      });
-    });
+    return this.spawner.findUploadedFiles(remote, parentFolder, jobId, exclude);
   }
 
   private async ensureRcloneConfigExist(configFile: string, storage: string, job: Job<IVideoData>) {
