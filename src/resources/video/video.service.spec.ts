@@ -11,6 +11,7 @@ import { EncodingArgsService } from './encoding-args.service';
 import { QualityResolverService } from './quality-resolver.service';
 import { ProcessSpawnerService } from './process-spawner.service';
 import { CodecPresetRegistry } from './codec-preset.registry';
+import { RcloneService } from './rclone.service';
 
 describe('VideoService', () => {
   let service: VideoService;
@@ -23,6 +24,7 @@ describe('VideoService', () => {
         QualityResolverService,
         ProcessSpawnerService,
         CodecPresetRegistry,
+        RcloneService,
         {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn() }
