@@ -5,6 +5,7 @@ import { Job } from 'bullmq';
 
 import { RcloneService } from './rclone.service';
 import { externalStorageModel } from '../../models/external-storage.model';
+import { fileHelper } from '../../utils';
 import { IVideoData } from './interfaces';
 
 /**
@@ -127,5 +128,62 @@ describe('RcloneService.getLinkedSourceUrl (characterization)', () => {
     const url = await service.getLinkedSourceUrl(job, jest.fn());
 
     expect(url).toBe('https://host.example.com/s3/bucket/d/f.mkv');
+  });
+});
+
+/**
+ * Characterization for RcloneService.ensureRcloneConfigExist — the SECOND
+ * externalStorageModel query site in this service (rclone.service.ts:37-40),
+ * distinct from getLinkedSourceUrl because it uses NO projection.
+ *
+ * This is a migrated call site (singleton -> @InjectModel('externalstorage')),
+ * so the query shape must be locked. The decrypt/createRcloneConfig success tail
+ * is intentionally not exercised (findOne returns null) — that keeps this a pure
+ * query-shape + lifecycle net and leaves the crypto path in the reviewer's lane.
+ */
+describe('RcloneService.ensureRcloneConfigExist (characterization)', () => {
+  let service: RcloneService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RcloneService,
+        {
+          provide: WINSTON_MODULE_PROVIDER,
+          useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
+        },
+        { provide: ConfigService, useValue: { get: jest.fn() } }
+      ]
+    }).compile();
+    service = module.get<RcloneService>(RcloneService);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('queries externalStorage by BigInt id with NO projection when the rclone config is missing', async () => {
+    jest.spyOn(fileHelper, 'findInFile').mockResolvedValue(false); // config not present -> query runs
+    const findOneSpy = mockFindOne(null); // missing record -> stops at onStorageNotFound
+    const onStorageNotFound = jest.fn().mockResolvedValue({ errorCode: 'STORAGE_NOT_FOUND' });
+    const job = makeJob({ storage: '888' });
+
+    await expect(service.ensureRcloneConfigExist('/config/rclone.conf', '888', job, onStorageNotFound)).rejects.toThrow(
+      'STORAGE_NOT_FOUND'
+    );
+
+    // Query-shape contract (survives @InjectModel migration): single-arg findOne, no projection.
+    expect(findOneSpy).toHaveBeenCalledTimes(1);
+    expect(findOneSpy).toHaveBeenCalledWith({ _id: BigInt('888') });
+    expect(findOneSpy.mock.calls[0]).toHaveLength(1);
+    expect(onStorageNotFound).toHaveBeenCalledWith(job);
+  });
+
+  it('does NOT query externalStorage when the rclone config already exists', async () => {
+    jest.spyOn(fileHelper, 'findInFile').mockResolvedValue(true); // config present -> short-circuit
+    const findOneSpy = mockFindOne(null);
+    const job = makeJob({ storage: '888' });
+
+    await service.ensureRcloneConfigExist('/config/rclone.conf', '888', job, jest.fn());
+
+    expect(findOneSpy).not.toHaveBeenCalled();
   });
 });
