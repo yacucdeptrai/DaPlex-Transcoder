@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { getModelToken } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Job } from 'bullmq';
 
 import { RcloneService } from './rclone.service';
-import { externalStorageModel } from '../../models/external-storage.model';
 import { fileHelper } from '../../utils';
 import { IVideoData } from './interfaces';
 
@@ -16,37 +16,46 @@ import { IVideoData } from './interfaces';
  * onStorageNotFound callback seam, the !publicUrl -> null branch, the
  * encodeURIComponent path join, and the :service_path / :path URL substitution.
  *
- * The Mongoose model is mocked (findOne().lean().exec()). The decrypt path
- * (decryptToken / CRYPTO_SECRET_KEY) is intentionally NOT exercised here — that
+ * The 'externalstorage' model is injected (@InjectModel) and mocked here via its
+ * model token; findOne(...).lean().exec() is programmed on that mock. The decrypt
+ * path (decryptToken / CRYPTO_SECRET_KEY) is intentionally NOT exercised — that
  * stays the security-reviewer's verified lane.
  */
 
-// Mongoose findOne(...).lean().exec() returns `doc`. Capture the call args so the
-// projection + queried _id can be asserted.
-function mockFindOne(doc: unknown) {
-  return jest.spyOn(externalStorageModel, 'findOne').mockReturnValue({
-    lean: () => ({ exec: () => Promise.resolve(doc) })
-  } as any);
-}
-
 const makeJob = (data: Partial<IVideoData>): Job<IVideoData> => ({ data } as Job<IVideoData>);
+
+// Builds a RcloneService backed by a mocked 'externalstorage' model. Returns both
+// so tests can program findOne and assert its query shape on the injected handle.
+const buildService = async () => {
+  const externalStorageMock = { findOne: jest.fn() };
+  const module: TestingModule = await Test.createTestingModule({
+    providers: [
+      RcloneService,
+      {
+        provide: WINSTON_MODULE_PROVIDER,
+        useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
+      },
+      { provide: ConfigService, useValue: { get: jest.fn() } },
+      { provide: getModelToken('externalstorage'), useValue: externalStorageMock }
+    ]
+  }).compile();
+  return { service: module.get<RcloneService>(RcloneService), externalStorageMock };
+};
 
 describe('RcloneService.getLinkedSourceUrl (characterization)', () => {
   let service: RcloneService;
-  let findOneSpy: jest.SpyInstance;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let externalStorageMock: { findOne: jest.Mock };
+  let findOneSpy: jest.Mock;
+
+  // findOne(...).lean().exec() returns `doc`. Programs the injected model mock.
+  const mockFindOne = (doc: unknown) => {
+    externalStorageMock.findOne.mockReturnValue({ lean: () => ({ exec: () => Promise.resolve(doc) }) });
+    return externalStorageMock.findOne;
+  };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RcloneService,
-        {
-          provide: WINSTON_MODULE_PROVIDER,
-          useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
-        },
-        { provide: ConfigService, useValue: { get: jest.fn() } }
-      ]
-    }).compile();
-    service = module.get<RcloneService>(RcloneService);
+    ({ service, externalStorageMock } = await buildService());
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -143,19 +152,15 @@ describe('RcloneService.getLinkedSourceUrl (characterization)', () => {
  */
 describe('RcloneService.ensureRcloneConfigExist (characterization)', () => {
   let service: RcloneService;
+  let externalStorageMock: { findOne: jest.Mock };
+
+  const mockFindOne = (doc: unknown) => {
+    externalStorageMock.findOne.mockReturnValue({ lean: () => ({ exec: () => Promise.resolve(doc) }) });
+    return externalStorageMock.findOne;
+  };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RcloneService,
-        {
-          provide: WINSTON_MODULE_PROVIDER,
-          useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
-        },
-        { provide: ConfigService, useValue: { get: jest.fn() } }
-      ]
-    }).compile();
-    service = module.get<RcloneService>(RcloneService);
+    ({ service, externalStorageMock } = await buildService());
   });
 
   afterEach(() => jest.restoreAllMocks());

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { getQueueToken } from '@nestjs/bullmq';
+import { getModelToken } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 
 import { VideoModule } from './video.module';
@@ -59,6 +60,18 @@ describe('VideoModule DI graph (smoke)', () => {
       .useValue({ add: jest.fn(), remove: jest.fn() })
       .overrideProvider(HttpService)
       .useValue({ get: jest.fn(), post: jest.fn(), patch: jest.fn(), axiosRef: {} })
+      // MongooseModule.forFeature registers these four model providers; override
+      // them so the graph compiles without a live connection. The override only
+      // satisfies tokens VideoModule actually registers — if a forFeature entry is
+      // dropped, the service's @InjectModel still throws UnknownDependencyException.
+      .overrideProvider(getModelToken('setting'))
+      .useValue({})
+      .overrideProvider(getModelToken('media'))
+      .useValue({})
+      .overrideProvider(getModelToken('externalstorage'))
+      .useValue({})
+      .overrideProvider(getModelToken('mediastorage'))
+      .useValue({})
       .compile();
   });
 
@@ -76,6 +89,14 @@ describe('VideoModule DI graph (smoke)', () => {
     expect(moduleRef.get(ProcessSpawnerService)).toBeInstanceOf(ProcessSpawnerService);
     expect(moduleRef.get(CodecPresetRegistry)).toBeInstanceOf(CodecPresetRegistry);
     expect(moduleRef.get(RcloneService)).toBeInstanceOf(RcloneService);
+  });
+
+  it('registers the four Mongoose models via forFeature (forRootAsync/forFeature canary)', () => {
+    // If any forFeature entry is missing, compiling the module above would have
+    // thrown UnknownDependencyException for the service's @InjectModel param.
+    for (const name of ['setting', 'media', 'externalstorage', 'mediastorage']) {
+      expect(moduleRef.get(getModelToken(name))).toBeDefined();
+    }
   });
 
   it('builds the BaseVideoConsumer factory from VIDEO_CODEC without throwing', () => {

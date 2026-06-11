@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getQueueToken } from '@nestjs/bullmq';
+import { getModelToken } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import * as path from 'path';
 
@@ -79,7 +80,11 @@ describe('VideoService.createTwoPassesVideoEncodingArgs (characterization)', () 
         { provide: getQueueToken(TaskQueue.VIDEO_TRANSCODE_RESULT), useValue: { add: jest.fn(), remove: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(undefined) } },
         { provide: DaplexApiService, useValue: {} },
-        { provide: TranscoderApiService, useValue: {} }
+        { provide: TranscoderApiService, useValue: {} },
+        { provide: getModelToken('setting'), useValue: { findOne: jest.fn() } },
+        { provide: getModelToken('media'), useValue: { findOne: jest.fn() } },
+        { provide: getModelToken('externalstorage'), useValue: { findOne: jest.fn() } },
+        { provide: getModelToken('mediastorage'), useValue: { findOne: jest.fn() } }
       ]
     }).compile();
 

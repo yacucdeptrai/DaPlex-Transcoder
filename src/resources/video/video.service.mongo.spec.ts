@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getQueueToken } from '@nestjs/bullmq';
+import { getModelToken } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import mongoose from 'mongoose';
 
@@ -14,10 +15,6 @@ import { TaskQueue, VideoCodec } from '../../enums';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import { fileHelper } from '../../utils';
-import { settingModel } from '../../models/setting.model';
-import { mediaModel } from '../../models/media.model';
-import { externalStorageModel } from '../../models/external-storage.model';
-import { mediaStorageModel } from '../../models/media-storage.model';
 
 /**
  * Characterization tests for the Mongo reads VideoService.transcode() performs
@@ -25,17 +22,16 @@ import { mediaStorageModel } from '../../models/media-storage.model';
  *
  * The MIGRATION-INVARIANT contract these lock is the per-document query SHAPE —
  * each findOne's filter ({}, { _id: BigInt(...) }) and projection — and the
- * .lean().exec() chain. The surgeon keeps every filter/projection byte-identical
- * when the singleton imports become @InjectModel('<name>')-injected Model<T>;
- * once that lands these assertions are repointed (see 02_test_baseline.md) to spy
- * on the injected model mocks, but the asserted shapes do NOT change.
+ * .lean().exec() chain. After the singleton -> @InjectModel('<name>') switch the
+ * reads run on the four injected models, which are mocked here via their model
+ * tokens; the asserted filter/projection shapes are unchanged from the baseline.
  *
- * The per-job mongoose.connect/disconnect lifecycle is pinned only in the
- * [repoint] test below — it is the thing the migration REMOVES.
+ * The connection is owned by MongooseModule, so the service must NOT open/close
+ * its own — pinned in the lifecycle test below.
  *
- * No real DB connection is ever opened (mongoose.connect/disconnect are stubbed),
- * and transcode() is intentionally short-circuited right after the reads by
- * making fileHelper.createDir throw a sentinel, so no rclone/ffmpeg runs.
+ * No real DB connection is ever opened (the model mocks are pure), and transcode()
+ * is intentionally short-circuited right after the reads by making
+ * fileHelper.createDir throw a sentinel, so no rclone/ffmpeg runs.
  */
 describe('VideoService.transcode Mongo reads (characterization)', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,10 +69,10 @@ describe('VideoService.transcode Mongo reads (characterization)', () => {
 
   let connectSpy: jest.SpyInstance;
   let disconnectSpy: jest.SpyInstance;
-  let settingFindOne: jest.SpyInstance;
-  let mediaFindOne: jest.SpyInstance;
-  let externalFindOne: jest.SpyInstance;
-  let mediaStorageFindOne: jest.SpyInstance;
+  let settingFindOne: jest.Mock;
+  let mediaFindOne: jest.Mock;
+  let externalFindOne: jest.Mock;
+  let mediaStorageFindOne: jest.Mock;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -94,26 +90,32 @@ describe('VideoService.transcode Mongo reads (characterization)', () => {
         { provide: getQueueToken(TaskQueue.VIDEO_TRANSCODE_RESULT), useValue: { add: jest.fn(), remove: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn((key: string) => configValues[key]) } },
         { provide: DaplexApiService, useValue: {} },
-        { provide: TranscoderApiService, useValue: {} }
+        { provide: TranscoderApiService, useValue: {} },
+        { provide: getModelToken('setting'), useValue: { findOne: jest.fn() } },
+        { provide: getModelToken('media'), useValue: { findOne: jest.fn() } },
+        { provide: getModelToken('externalstorage'), useValue: { findOne: jest.fn() } },
+        { provide: getModelToken('mediastorage'), useValue: { findOne: jest.fn() } }
       ]
     }).compile();
 
     service = module.get<VideoService>(VideoService);
 
-    connectSpy = jest.spyOn(mongoose, 'connect').mockResolvedValue(undefined as any);
-    disconnectSpy = jest.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as any);
+    // The migration owns the connection in MongooseModule — the service no longer
+    // calls these. Spied (not stubbed) so the lifecycle test can assert never-called.
+    connectSpy = jest.spyOn(mongoose, 'connect');
+    disconnectSpy = jest.spyOn(mongoose, 'disconnect');
 
-    // Each model read returns a minimal doc. mediaStorage (the source) returns a
-    // falsy quality so validateSourceQuality is skipped and execution proceeds to
-    // disconnect + createDir without needing the encoding pipeline.
-    settingFindOne = jest.spyOn(settingModel, 'findOne').mockReturnValue(leanExec({}) as any);
-    mediaFindOne = jest.spyOn(mediaModel, 'findOne').mockReturnValue(leanExec({ originalLang: 'en' }) as any);
-    externalFindOne = jest
-      .spyOn(externalStorageModel, 'findOne')
-      .mockReturnValue(leanExec({ publicUrl: 'https://cdn/' }) as any);
-    mediaStorageFindOne = jest
-      .spyOn(mediaStorageModel, 'findOne')
-      .mockReturnValue(leanExec({ name: 'src', quality: 0 }) as any);
+    // Program each injected model. mediaStorage (the source) returns a falsy quality
+    // so validateSourceQuality is skipped and execution proceeds to createDir
+    // without needing the encoding pipeline.
+    settingFindOne = module.get(getModelToken('setting')).findOne;
+    mediaFindOne = module.get(getModelToken('media')).findOne;
+    externalFindOne = module.get(getModelToken('externalstorage')).findOne;
+    mediaStorageFindOne = module.get(getModelToken('mediastorage')).findOne;
+    settingFindOne.mockReturnValue(leanExec({}));
+    mediaFindOne.mockReturnValue(leanExec({ originalLang: 'en' }));
+    externalFindOne.mockReturnValue(leanExec({ publicUrl: 'https://cdn/' }));
+    mediaStorageFindOne.mockReturnValue(leanExec({ name: 'src', quality: 0 }));
 
     // rclone config check is exercised inside transcode() before the source read.
     jest.spyOn(RcloneService.prototype, 'ensureRcloneConfigExist').mockResolvedValue(undefined as any);
@@ -158,19 +160,13 @@ describe('VideoService.transcode Mongo reads (characterization)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // REPOINT-AFTER-MIGRATION: per-job connection lifecycle.
-  //
-  // Pins the CURRENT connect-before / disconnect-after window around the reads.
-  // The persistent-Mongoose migration REMOVES this (connection ownership moves to
-  // MongooseModule.forRootAsync). Surgeon repoint: DELETE this test and replace it
-  // with the post-migration invariant (mongoose.connect/disconnect are NEVER called
-  // by the service). The query-shape tests above survive unchanged.
+  // Post-migration lifecycle invariant: the connection is owned by MongooseModule
+  // (forRootAsync), so transcode() must NOT open/close its own mongoose connection.
+  // Replaces the pre-migration per-job connect/disconnect assertion.
   // ---------------------------------------------------------------------------
-  it('[repoint] opens one per-job connection (family:4 + useBigInt64) and disconnects after the reads', async () => {
+  it('does not open or close its own mongoose connection (owned by MongooseModule)', async () => {
     await runToReadWindow();
-    expect(connectSpy).toHaveBeenCalledTimes(1);
-    expect(connectSpy).toHaveBeenCalledWith('mongodb://test/db', { family: 4, useBigInt64: true });
-    // disconnect is reached because the source quality is falsy (validateSourceQuality skipped).
-    expect(disconnectSpy).toHaveBeenCalledTimes(1);
+    expect(connectSpy).not.toHaveBeenCalled();
+    expect(disconnectSpy).not.toHaveBeenCalled();
   });
 });

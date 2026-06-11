@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { getQueueToken } from '@nestjs/bullmq';
+import { getModelToken } from '@nestjs/mongoose';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import mongoose from 'mongoose';
 import * as path from 'path';
@@ -15,7 +16,14 @@ import { TaskQueue, VideoCodec } from '../../enums';
 import { DaplexApiService } from '../../common/modules/daplex-api';
 import { TranscoderApiService } from '../../common/modules/transcoder-api';
 import { rcloneHelper } from '../../utils';
-import { mediaStorageModel } from '../../models/media-storage.model';
+
+// findOne(...).lean().exec() chain — returned by the injected model mock so the
+// query shape can be asserted on the injected handle.
+const leanExec = (doc: unknown) => ({ lean: () => ({ exec: () => Promise.resolve(doc) }) });
+
+// Minimal model-token mock. VideoService is co-provided here and injects all four
+// models, so every token must resolve even though only 'mediastorage' is exercised.
+const modelMock = () => ({ findOne: jest.fn() });
 
 /**
  * Characterization tests for the quality-resolution helpers: calculateQuality,
@@ -29,6 +37,9 @@ import { mediaStorageModel } from '../../models/media-storage.model';
 describe('QualityResolverService (characterization)', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let target: any;
+  // The injected 'mediastorage' model mock — QualityResolverService queries it.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mediaStorageMock: any;
 
   const configValues: Record<string, string | undefined> = {
     DATABASE_URL: 'mongodb://test/db',
@@ -52,11 +63,17 @@ describe('QualityResolverService (characterization)', () => {
         { provide: getQueueToken(TaskQueue.VIDEO_TRANSCODE_RESULT), useValue: { add: jest.fn(), remove: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn((key: string) => configValues[key]) } },
         { provide: DaplexApiService, useValue: {} },
-        { provide: TranscoderApiService, useValue: {} }
+        { provide: TranscoderApiService, useValue: {} },
+        // Co-provided VideoService injects all four; QualityResolverService injects 'mediastorage'.
+        { provide: getModelToken('setting'), useValue: modelMock() },
+        { provide: getModelToken('media'), useValue: modelMock() },
+        { provide: getModelToken('externalstorage'), useValue: modelMock() },
+        { provide: getModelToken('mediastorage'), useValue: modelMock() }
       ]
     }).compile();
 
     target = module.get<QualityResolverService>(QualityResolverService);
+    mediaStorageMock = module.get(getModelToken('mediastorage'));
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -89,17 +106,13 @@ describe('QualityResolverService (characterization)', () => {
     const parsedInput = path.parse('/transcode/source.mkv'); // name = 'source'
     const job = { data: { _id: '999' } } as any;
 
-    // Returns the findOne spy so the query shape can be asserted. The filter
-    // ({ _id: BigInt(job.data._id) }) with NO projection is the migration-invariant
-    // contract: it must survive the singleton -> @InjectModel switch byte-identically.
-    // connect/disconnect are stubbed only so the current per-job lifecycle doesn't
-    // hit a real DB; their call-shape is pinned separately in the REPOINT block.
+    // Programs the injected 'mediastorage' model and returns its findOne mock so
+    // the query shape can be asserted. The filter ({ _id: BigInt(job.data._id) })
+    // with NO projection is the migration-invariant contract — asserted identically
+    // before and after the singleton -> @InjectModel switch.
     const mockStreams = (streams: Array<{ codec: number; _id: bigint; quality: number }>) => {
-      jest.spyOn(mongoose, 'connect').mockResolvedValue(undefined as any);
-      jest.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as any);
-      return jest
-        .spyOn(mediaStorageModel, 'findOne')
-        .mockReturnValue({ lean: () => ({ exec: () => Promise.resolve({ streams }) }) } as any);
+      mediaStorageMock.findOne.mockReturnValue(leanExec({ streams }));
+      return mediaStorageMock.findOne;
     };
 
     it('returns qualities whose encoded streams are not yet present', async () => {
@@ -155,27 +168,19 @@ describe('QualityResolverService (characterization)', () => {
     });
 
     // -------------------------------------------------------------------------
-    // REPOINT-AFTER-MIGRATION: per-job connection lifecycle.
-    //
-    // These assertions pin the CURRENT per-job connect/disconnect that brackets
-    // the findOne. The persistent-Mongoose migration REMOVES this lifecycle (the
-    // connection moves to MongooseModule.forRootAsync), so the surgeon's repoint
-    // is: DELETE this block and add the post-migration invariant (connect/disconnect
-    // are NEVER called by the service). Do NOT delete the query-shape assertions
-    // above — those survive the migration unchanged. See 02_test_baseline.md.
+    // Post-migration lifecycle invariant: the connection is owned by
+    // MongooseModule (forRootAsync), so the service must NOT open/close its own.
+    // This replaces the pre-migration per-job connect/disconnect assertion.
     // -------------------------------------------------------------------------
-    it('[repoint] opens a per-job connection with family:4 + useBigInt64 and disconnects after the query', async () => {
-      const connectSpy = jest.spyOn(mongoose, 'connect').mockResolvedValue(undefined as any);
-      const disconnectSpy = jest.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as any);
-      jest
-        .spyOn(mediaStorageModel, 'findOne')
-        .mockReturnValue({ lean: () => ({ exec: () => Promise.resolve({ streams: [] }) }) } as any);
+    it('does not open or close its own mongoose connection (owned by MongooseModule)', async () => {
+      const connectSpy = jest.spyOn(mongoose, 'connect');
+      const disconnectSpy = jest.spyOn(mongoose, 'disconnect');
+      mockStreams([]);
 
       await target.findAvailableQuality(['123/source_1080.mp4'], [1080], parsedInput, VideoCodec.H264, [], job);
 
-      expect(connectSpy).toHaveBeenCalledTimes(1);
-      expect(connectSpy).toHaveBeenCalledWith('mongodb://test/db', { family: 4, useBigInt64: true });
-      expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      expect(connectSpy).not.toHaveBeenCalled();
+      expect(disconnectSpy).not.toHaveBeenCalled();
     });
   });
 
