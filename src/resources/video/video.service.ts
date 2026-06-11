@@ -90,7 +90,6 @@ export class VideoService {
   private CanRetryEncoding: boolean;
   private TranscoderPriority: number;
   private thumbnailFolder: string;
-  private spawner: ProcessSpawnerService;
 
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
@@ -100,7 +99,8 @@ export class VideoService {
     private daplexApiService: DaplexApiService,
     private transcoderApiService: TranscoderApiService,
     private encodingArgs: EncodingArgsService,
-    private qualityResolver: QualityResolverService
+    private qualityResolver: QualityResolverService,
+    private spawner: ProcessSpawnerService
   ) {
     const audioParams = this.configService.get<string>('AUDIO_PARAMS');
     this.AudioParams = audioParams ? audioParams.split(' ') : AUDIO_PARAMS;
@@ -127,7 +127,6 @@ export class VideoService {
     this.CanRetryEncoding = false;
     this.TranscoderPriority = 0;
     this.thumbnailFolder = THUMBNAIL_FOLDER;
-    this.spawner = new ProcessSpawnerService(this.logger, this.configService);
     this.spawner.setStateAccessors({
       getCanceledJobIds: () => this.CanceledJobIds,
       setCanceledJobIds: (ids) => (this.CanceledJobIds = ids),
