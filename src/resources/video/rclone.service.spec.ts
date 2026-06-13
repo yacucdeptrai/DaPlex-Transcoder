@@ -5,7 +5,7 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Job } from 'bullmq';
 
 import { RcloneService } from './rclone.service';
-import { fileHelper } from '../../utils';
+import { fileHelper, StringCrypto } from '../../utils';
 import { IVideoData } from './interfaces';
 
 /**
@@ -190,5 +190,115 @@ describe('RcloneService.ensureRcloneConfigExist (characterization)', () => {
     await service.ensureRcloneConfigExist('/config/rclone.conf', '888', job, jest.fn());
 
     expect(findOneSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Characterization for the credential-decrypt tail of ensureRcloneConfigExist —
+ * the path that decryptToken (rclone.service.ts:80-84) feeds. Unlike the
+ * query-shape suites above this drives the SUCCESS branch to completion so the
+ * decrypted secret actually reaches the on-disk config text.
+ *
+ * Two contracts are pinned:
+ *  1. The plaintext that lands in the rclone config file is the real decrypted
+ *     secret (a genuine StringCrypto round-trip, not a stub) — surgeon's
+ *     local-copy hardening must NOT change what rclone receives.
+ *  2. The INPUT storage object's clientSecret stays ENCRYPTED after the call.
+ *     This locks the current in-place-mutation bug: today decryptToken writes
+ *     the plaintext back onto the shared findOne().lean() object, so this
+ *     assertion is EXPECTED-RED on unchanged code and must go green once the
+ *     surgeon decrypts into a local copy. See _workspace/02_test_baseline.md.
+ */
+describe('RcloneService.ensureRcloneConfigExist credential decrypt (characterization)', () => {
+  const CRYPTO_KEY = 'test-crypto-secret-key';
+
+  // Mirrors the production StringCrypto so the test produces ciphertext decryptToken
+  // can actually decrypt (same aes256 + sha256-derived key, IV appended after '.').
+  const encryptSecret = async (plaintext: string) => {
+    const stringCrypto = new StringCrypto(CRYPTO_KEY);
+    return (await stringCrypto.encrypt(plaintext)) as string;
+  };
+
+  // Builds a RcloneService whose ConfigService returns a REAL crypto key, so the
+  // decryptToken round-trip runs end to end. Returns the mocked model handle too.
+  const buildCryptoService = async () => {
+    const externalStorageMock = { findOne: jest.fn() };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RcloneService,
+        {
+          provide: WINSTON_MODULE_PROVIDER,
+          useValue: { info: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), notice: jest.fn() }
+        },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(CRYPTO_KEY) } },
+        { provide: getModelToken('externalstorage'), useValue: externalStorageMock }
+      ]
+    }).compile();
+    return { service: module.get<RcloneService>(RcloneService), externalStorageMock };
+  };
+
+  // Programs findOne(...).lean().exec() to return the given storage record.
+  const mockFindOne = (externalStorageMock: { findOne: jest.Mock }, doc: unknown) => {
+    externalStorageMock.findOne.mockReturnValue({ lean: () => ({ exec: () => Promise.resolve(doc) }) });
+  };
+
+  // A drive (kind 3) storage record whose clientSecret is genuinely encrypted.
+  // kind 3 routes createRcloneConfig down the non-S3 branch which emits
+  // `client_secret = <secret>` into the config text.
+  const buildEncryptedStorage = async (encryptedSecret: string) => ({
+    _id: BigInt(888),
+    name: 'remote-888',
+    clientId: 'client-id-888',
+    clientSecret: encryptedSecret,
+    refreshToken: 'refresh-token',
+    accessToken: 'access-token',
+    expiry: new Date('2030-01-01T00:00:00.000Z'),
+    folderId: 'folder-888',
+    kind: 3,
+    folderName: 'f',
+    publicUrl: '',
+    secondPublicUrl: '',
+    inStorage: '',
+    used: 0,
+    files: []
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('writes the DECRYPTED plaintext secret into the rclone config file', async () => {
+    const PLAINTEXT = 'super-secret-value';
+    const encryptedSecret = await encryptSecret(PLAINTEXT);
+
+    const { service, externalStorageMock } = await buildCryptoService();
+    const storage = await buildEncryptedStorage(encryptedSecret);
+    mockFindOne(externalStorageMock, storage);
+    jest.spyOn(fileHelper, 'findInFile').mockResolvedValue(false); // config missing -> generate
+    const appendSpy = jest.spyOn(fileHelper, 'appendToFile').mockResolvedValue(undefined as never);
+
+    await service.ensureRcloneConfigExist('/config/rclone.conf', '888', makeJob({ storage: '888' }), jest.fn());
+
+    // The config text appended to disk carries the real decrypted secret, never the ciphertext.
+    expect(appendSpy).toHaveBeenCalledTimes(1);
+    const configText = appendSpy.mock.calls[0][1] as string;
+    expect(configText).toContain(`client_secret = ${PLAINTEXT}`);
+    expect(configText).not.toContain(encryptedSecret);
+  });
+
+  it('leaves the INPUT storage object clientSecret ENCRYPTED after the call (no in-place mutation)', async () => {
+    // EXPECTED-RED on current code: decryptToken mutates storage.clientSecret in place.
+    // Goes GREEN after surgeon decrypts into a local copy. See 02_test_baseline.md.
+    const PLAINTEXT = 'super-secret-value';
+    const encryptedSecret = await encryptSecret(PLAINTEXT);
+
+    const { service, externalStorageMock } = await buildCryptoService();
+    const storage = await buildEncryptedStorage(encryptedSecret);
+    mockFindOne(externalStorageMock, storage);
+    jest.spyOn(fileHelper, 'findInFile').mockResolvedValue(false);
+    jest.spyOn(fileHelper, 'appendToFile').mockResolvedValue(undefined as never);
+
+    await service.ensureRcloneConfigExist('/config/rclone.conf', '888', makeJob({ storage: '888' }), jest.fn());
+
+    expect(storage.clientSecret).toBe(encryptedSecret);
+    expect(storage.clientSecret).not.toBe(PLAINTEXT);
   });
 });

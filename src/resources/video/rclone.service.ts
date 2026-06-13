@@ -79,7 +79,7 @@ export class RcloneService {
 
   private async decryptToken(storage: IStorage) {
     const stringCrypto = new StringCrypto(this.configService.get<string>('CRYPTO_SECRET_KEY'));
-    storage.clientSecret = await stringCrypto.decrypt(storage.clientSecret);
-    return storage;
+    // Decrypt into a local copy so the input record's secret stays encrypted.
+    return { ...storage, clientSecret: await stringCrypto.decrypt(storage.clientSecret) };
   }
 }
