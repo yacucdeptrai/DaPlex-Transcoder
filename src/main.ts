@@ -15,6 +15,7 @@ async function bootstrap() {
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
   const port = process.env.PORT || PORT;
   const address = process.env.ADDRESS || ADDRESS;
+  app.enableShutdownHooks();
   await app.listen(port, address);
 }
 

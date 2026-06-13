@@ -99,7 +99,6 @@ export class RcloneHelper {
       ...copyArgs
     ];
     logFn(args);
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<void>((resolve, reject) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
 
@@ -179,7 +178,6 @@ export class RcloneHelper {
     logFn(args);
     const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
     if (!pathExist) return;
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return this.runRcloneVoid(rcloneDir, args);
   }
 
@@ -194,7 +192,6 @@ export class RcloneHelper {
     logFn(args);
     const pathExist = await this.isPathExist(configPath, rcloneDir, remote, path);
     if (!pathExist) return;
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return this.runRcloneVoid(rcloneDir, args);
   }
 
@@ -218,7 +215,6 @@ export class RcloneHelper {
   deleteRemote(configPath: string, rcloneDir: string, remote: string, logFn: (args: string[]) => void) {
     const args: string[] = ['--config', `"${configPath}"`, 'config', 'delete', remote];
     logFn(args);
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return this.runRcloneVoid(rcloneDir, args);
   }
 
@@ -235,7 +231,6 @@ export class RcloneHelper {
     options.recursive && args.push('--recursive');
     options.include && args.push('--include', `"${options.include}"`);
     options.exclude && args.push('--exclude', `"${options.exclude}"`);
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<RcloneFile[]>((resolve, reject) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
       let listJson = '';
@@ -262,7 +257,6 @@ export class RcloneHelper {
 
   isPathExist(configPath: string, rcloneDir: string, remote: string, path: string) {
     const args: string[] = ['--config', `"${configPath}"`, '--low-level-retries', '1', 'lsd', `"${remote}:${path}"`];
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<boolean>((resolve) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
       rclone.on('exit', (code: number) => {
@@ -277,7 +271,6 @@ export class RcloneHelper {
 
   mkdirRemote(configPath: string, rcloneDir: string, remote: string, path: string) {
     const args: string[] = ['--config', `"${configPath}"`, '--low-level-retries', '5', 'mkdir', `"${remote}:${path}"`];
-    //console.log('\x1b[36m%s\x1b[0m', 'rclone ' + args.join(' '));
     return new Promise<boolean>((resolve) => {
       const rclone = child_process.spawn(`"${rcloneDir}/rclone"`, args, { shell: true });
       rclone.on('exit', (code: number) => {

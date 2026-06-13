@@ -504,8 +504,6 @@ export class VideoService {
             ffmpegDir: ffmpegDir,
             duration: videoDuration,
             videoOnly: true,
-            //audioCodec: (videoInfo.format.format_name === 'mpegts' ||
-            // audioTracks[0].codec_name === 'pcm_bluray') ? 'pcm_s24le' : 'copy',
             useURLInput: this.UseURLInput,
             jobId: job.id,
             canceledJobIds: this.CanceledJobIds,
@@ -668,8 +666,6 @@ export class VideoService {
       this.logger.error(JSON.stringify(e));
       if (e === RejectCode.JOB_CANCEL) {
         this.logger.info(`Received cancel signal from job id: ${job.id}`);
-        //await this.daplexApiService.ensureProducerAppIsOnline(job.data.producerUrl);
-        //await this.videoResultQueue.add('cancelled-encoding', this.generateStatus(job));
         return {};
       }
       const statusError = await this.generateStatusError(StatusCode.ENCODE_VIDEO_FAILED, job);
@@ -1066,16 +1062,6 @@ export class VideoService {
     this.setTranscoderPriority(1);
 
     for (let i = 0; i < totalSegments; i++) {
-      // const handleSegmentError = () => {
-      //   this.logger.info('Received error 139 from FFmpeg');
-      //   const oldTotalSegments = totalSegments;
-      //   // Reduce duration by 10 second, but not below 10
-      //   segmentDuration = Math.max(10, segmentDuration - 10);
-      //   totalSegments = Math.ceil(sourceInfo.duration / segmentDuration);
-      //   if (totalSegments !== oldTotalSegments)
-      //     i = Math.ceil(i * totalSegments / oldTotalSegments);
-      //   this.logger.info(`New segment duration: ${segmentDuration}, total segments: ${totalSegments}, segment: ${i + 1}`);
-      // };
       // Output mkv for dynamic HDR retention when muxing with mp4box, otherwise use mp4 due to H264 compability
       const segmentFileName =
         codec === VideoCodec.AV1 && sourceInfo.isHDR ? `${quality}_${i}.mkv` : `${quality}_${i}.mp4`;
