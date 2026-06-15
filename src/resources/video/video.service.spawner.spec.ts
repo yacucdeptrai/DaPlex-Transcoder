@@ -79,7 +79,6 @@ describe('VideoService process spawners (characterization)', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let target: any;
   let spawnSpy: jest.SpyInstance;
-  let stdoutSpy: jest.SpyInstance;
 
   const configValues: Record<string, string | undefined> = {
     FFMPEG_DIR: '/opt/ffmpeg',
@@ -115,7 +114,7 @@ describe('VideoService process spawners (characterization)', () => {
     target = module.get<VideoService>(VideoService);
     spawnSpy = jest.spyOn(child_process, 'spawn');
     // Suppress the progress writes so check-console / clean output is preserved.
-    stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {

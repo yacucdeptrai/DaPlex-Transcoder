@@ -3,7 +3,9 @@ import * as mongoBson from 'mongodb/lib/bson.js';
 
 export class MongooseHelper {
   applyMongoDBPatches() {
-    BigInt.prototype['toJSON'] = function () { return this.toString() };
+    (BigInt.prototype as any)['toJSON'] = function () {
+      return this.toString();
+    };
     mongoBson['resolveBSONOptions'] = function (
       options?: BSONSerializeOptions,
       parent?: { bsonOptions?: BSONSerializeOptions }
@@ -19,14 +21,15 @@ export class MongooseHelper {
         bsonRegExp: options?.bsonRegExp ?? parentOptions?.bsonRegExp ?? false,
         serializeFunctions: options?.serializeFunctions ?? parentOptions?.serializeFunctions ?? false,
         fieldsAsRaw: options?.fieldsAsRaw ?? parentOptions?.fieldsAsRaw ?? {},
-        enableUtf8Validation:
-          options?.enableUtf8Validation ?? parentOptions?.enableUtf8Validation ?? true
+        enableUtf8Validation: options?.enableUtf8Validation ?? parentOptions?.enableUtf8Validation ?? true
       };
-    }
+    };
   }
 
   applyBigIntPatches() {
-    BigInt.prototype['toJSON'] = function () { return this.toString() };
+    (BigInt.prototype as any)['toJSON'] = function () {
+      return this.toString();
+    };
   }
 }
 

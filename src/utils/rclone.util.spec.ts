@@ -22,7 +22,7 @@ function fakeProc(code: number | null, stderrChunks: string[] = []) {
 const RCLONE_DIR = '/opt/rclone';
 const RCLONE_BIN = `"${RCLONE_DIR}/rclone"`;
 const SHELL_OPTS = { shell: true };
-const noop = () => undefined;
+const noop = (): void => undefined;
 
 describe('RcloneHelper void rclone commands (Group-A)', () => {
   let spawnSpy: jest.SpyInstance;

@@ -260,7 +260,7 @@ describe('RcloneService.ensureRcloneConfigExist credential decrypt (characteriza
     secondPublicUrl: '',
     inStorage: '',
     used: 0,
-    files: []
+    files: [] as any[]
   });
 
   afterEach(() => jest.restoreAllMocks());

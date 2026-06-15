@@ -215,7 +215,7 @@ describe('QualityResolverService (characterization)', () => {
     });
 
     it('parses and returns the manifest when present', async () => {
-      const manifest = { videoTracks: [{ uri: '1/source_1080.mp4' }], audioTracks: [] };
+      const manifest = { videoTracks: [{ uri: '1/source_1080.mp4' }], audioTracks: [] as any[] };
       jest.spyOn(rcloneHelper, 'isPathExist').mockResolvedValue(true);
       jest.spyOn(rcloneHelper, 'listRemoteJson').mockResolvedValue([{ Path: 'sub/manifest_1.json' }] as any);
       jest.spyOn(rcloneHelper, 'readRemoteFile').mockResolvedValue(JSON.stringify(manifest));
